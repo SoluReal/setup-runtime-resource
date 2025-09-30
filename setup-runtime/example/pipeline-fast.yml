@@ -1,0 +1,87 @@
+resource_types:
+  - name: setup-runtime-resource
+    type: registry-image
+    # Seee: https://github.com/concourse/concourse/pull/9017
+    privileged: true
+    source:
+      repository: registry:5000/setup-runtime-resource
+      tag: latest
+      insecure: true
+  - name: mock-via-params
+    type: mock
+    source:
+      initial_version: some-version
+    params: { mirror_self_via_params: true }
+
+resources:
+  - name: some-resource
+    type: mock-via-params
+    source:
+      initial_version: some-version
+
+  - name: setup-runtime
+    type: setup-runtime-resource
+    icon: account-hard-hat
+    source:
+      base_image:
+        name: debian
+        version: stable
+      #    dependencies:
+      #      - wget
+      #    java:
+      #      version: 21
+      #      extra_versions:
+      #        - 25-graalce
+      #    nodejs:
+      #      version: lts
+      #      yarn:
+      #        version: 4.10.2
+      #      pnpm:
+      #        version: 10.17.1
+      #    python:
+      #      version: 3.11
+      #    gradle:
+      #      version: 9.0.0
+      #    maven:
+      #      version: 3.9.9
+      docker:
+        enabled: true
+      verbose: true
+
+jobs:
+  - name: test-setup-runtime
+    plan:
+      - in_parallel:
+          - get: setup-runtime
+          - get: some-resource
+      - task: test-image
+        image: setup-runtime
+        privileged: true
+        params:
+          # Seems to be only needed because of the setup with docker-compose.
+          DOCKER_OPTS: "--iptables=false --bridge=none"
+        file: setup-runtime/task.yml
+        vars:
+          input: some-resource
+#          inputs: [ { name: some-resource } ]
+#          outputs: [ ]
+          script: |
+            ls -lah some-resource/ || true
+            
+            echo "cached images"
+            docker images 
+            
+            # Test docker
+            docker pull alpine
+            docker run --rm alpine echo "hi"
+#        java --version
+#        sdk use java 25-graalce
+#        echo "JAVA: $(java --version)"
+#
+#        native-image --help
+#
+#        echo "PYTHON: $(python --version)"
+#        echo "NODE: $(node --version)"
+#        echo "YARN: $(yarn --version)"
+#        echo "PNPM: $(pnpm --version)"
+#        echo "NPM: $(npm --version)"

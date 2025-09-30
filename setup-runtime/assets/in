@@ -1,0 +1,202 @@
+#!/bin/bash
+
+set -euo pipefail
+
+exec 3>&1 # make stdout available as fd 3 for the result
+exec 1>&2 # redirect all output to stderr for logging
+
+export ROOT_DIR=$(dirname $0)
+source $ROOT_DIR/common.sh
+source $ROOT_DIR/installers/dind.sh
+source $ROOT_DIR/installers/sdkman.sh
+source $ROOT_DIR/installers/java.sh
+source $ROOT_DIR/installers/gradle.sh
+source $ROOT_DIR/installers/maven.sh
+source $ROOT_DIR/installers/node.sh
+source $ROOT_DIR/installers/python.sh
+
+dest=$1
+
+payload="$(cat <&0)"
+
+# Compute hash for current payload
+hash=$(compute_hash "$payload")
+
+# Extract properties from source payload
+base_image_name=$(jq -r '(.source.base_image.name // "")' <<< "$payload")
+base_image_version=$(jq -r '(.source.base_image.version // "")' <<< "$payload")
+extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payload")
+repository=$(jq -r '(.source.repository // "")' <<< "$payload")
+username=$(jq -r '(.source.username // "")' <<< "$payload")
+password=$(jq -r '(.source.password // "")' <<< "$payload")
+verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
+export VERBOSE=$verbose
+
+# TODO -as- 20250930 maybe we can get rid of buildah and the need for privileged containers?
+#https://manpages.debian.org/testing/mmdebstrap/mmdebstrap.1.en.html
+#https://chatgpt.com/c/68db79a8-11c4-8330-b280-30f48eafabe5
+if [[ -z "$base_image_name" ]]; then
+  base_image_name="debian"
+
+  if [[ -z "$base_image_version" ]]; then
+    base_image_version="stable-slim"
+  fi
+fi
+
+if [[ -z "$base_image_version" ]]; then
+  base_image_version="latest"
+fi
+
+info "base-image: ${base_image_name}:${base_image_version}"
+if [[ -n "$extra_dependencies" ]]; then
+  info "extra_dependencies=$extra_dependencies"
+fi
+
+# Determine package manager from base-image
+normalize_name=$(echo "${base_image_name}" | tr '[:upper:]' '[:lower:]')
+pkg_mgr=""
+case "$normalize_name" in
+  *wolfi* ) pkg_mgr="apk" ;;
+  debian* ) pkg_mgr="apt" ;;
+  ubuntu* ) pkg_mgr="apt" ;;
+  fedora* ) pkg_mgr="dnf" ;;
+  centos* ) pkg_mgr="dnf" ;;
+  rhel*|redhat* ) pkg_mgr="dnf" ;;
+  *rocky*|*almalinux* ) pkg_mgr="dnf" ;;
+  * )
+    error "Error: Unsupported base image '$base_image_name'. Unable to determine package manager."
+    exit 1
+    ;;
+esac
+
+info "package-manager: ${pkg_mgr}"
+
+# Get apk/apt/dnf dependencies for all installation options and deduplicate
+dependencies="
+  $(sdkman_get_dependencies $pkg_mgr $payload)
+  $(node_get_dependencies $pkg_mgr $payload)
+  $(python_get_dependencies $pkg_mgr $payload)
+  $(dind_get_dependencies $pkg_mgr $payload)
+"
+dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
+
+if [[ -n "$repository" && -n "$username" && -n "$password" ]]; then
+  log_on_error buildah login -u "$username" -p "$password" "$repository"
+fi
+
+ctr=$(buildah from "${base_image_name}:${base_image_version}")
+
+if [ ! -z "$dependencies" ]; then
+  info "installing required dependencies..."
+  case "$pkg_mgr" in
+    apk)
+      log_on_error buildah run "$ctr" -- sh -lc "
+        apk add --no-cache bash $dependencies &&
+        sed -i 's|/bin/ash|/bin/bash|' /etc/passwd
+      "
+      ;;
+    apt)
+      log_on_error buildah run "$ctr" -- bash -lc "apt-get update && apt-get install -y $dependencies" ;;
+    dnf)
+      log_on_error buildah run "$ctr" -- bash -lc "dnf -y install $dependencies || yum -y install $dependencies" ;;
+  esac
+  info "dependencies installed..."
+fi
+
+set_env "$ctr" "BASH_ENV=/root/.bashrc"
+set_env "$ctr" "ENV=/root/.bashrc"
+
+case "$pkg_mgr" in
+  apk)
+    log_on_error buildah run "$ctr" -- sh -lc "adduser -D -u 1000 $RUNTIME_USER" ;;
+  apt)
+    log_on_error buildah run "$ctr" -- bash -lc "useradd -m $RUNTIME_USER -u 1000" ;;
+  dnf)
+    log_on_error buildah run "$ctr" -- bash -lc "useradd -m $RUNTIME_USER -u 1000" ;;
+esac
+
+log_on_error buildah run "$ctr" -- sh -lc "
+  echo \"$RUNTIME_USER:100000:65536\" >> /etc/subuid &&
+  echo \"$RUNTIME_USER:100000:65536\" >> /etc/subgid"
+
+info "installing candidates"
+
+# Common setup stuff
+log_on_error buildah run "$ctr" -- bash -lc "touch /root/.bashrc && mkdir -p $RUNTIME_DIR"
+
+sdkman_install $ctr $payload
+java_install $ctr $payload
+gradle_install $ctr $payload
+maven_install $ctr $payload
+node_install $ctr $payload
+python_install $ctr $payload
+dind_install $ctr $payload
+
+node_cleanup $ctr $payload
+sdkman_cleanup $ctr $payload
+python_cleanup $pkg_mgr $payload
+
+# Delete any .git folders which e.g. nvm use.
+log_on_error buildah run "$ctr" -- bash -lc 'find /root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +'
+
+if [ ! -z "$extra_dependencies" ]; then
+  info "installing extra_dependencies..."
+  case "$pkg_mgr" in
+    apk)
+      log_on_error buildah run "$ctr" -- sh -lc "apk add --no-cache $extra_dependencies" ;;
+    apt)
+      log_on_error buildah run "$ctr" -- bash -lc "apt-get update && apt-get install -y $extra_dependencies" ;;
+    dnf)
+      log_on_error buildah run "$ctr" -- bash -lc "dnf -y install $extra_dependencies || yum -y install $extra_dependencies" ;;
+  esac
+  info "extra_dependencies installed"
+fi
+
+set_env "$ctr" "GRADLE_USER_HOME=/cache/gradle"
+set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn"
+
+info "cleaning final image..."
+case "$pkg_mgr" in
+apk)
+  log_on_error buildah run "$ctr" -- sh -lc "rm -rf /var/cache/apk/*" ;;
+apt)
+  log_on_error buildah run "$ctr" -- bash -lc "apt autoremove -y && apt clean -y" ;;
+dnf)
+  log_on_error buildah run "$ctr" -- bash -lc "
+    if command -v dnf >/dev/null 2>&1; then
+      dnf clean all &&
+      rm -rf /var/cache/dnf
+    else
+      yum clean all &&
+      rm -rf /var/cache/yum
+    fi
+  " ;;
+esac
+info "cleaning completed"
+
+# By squashing the image we have only one layer containing the rootfs
+log_on_error buildah commit --squash -D --rm "$ctr" "setup-runtime-image"
+log_on_error buildah push setup-runtime-image oci:/tmp/setup-runtime-out
+
+# Define env vars to load the bash profile in non interactive shells
+# Add cache environment variables so caching is straightforward
+jq -n "{
+  env: [$(sed 's/.*/"&"/' /tmp/env_vars | tr '\n' ',' | sed 's/,$//')],
+  user: \"\"
+}" > "$dest/metadata.json"
+
+log_on_error cat $dest/metadata.json
+
+mkdir -p $dest/rootfs
+# Get the blob with the largest file size. Not clean but it is fast and is almost always correct.
+rootfs=$(find /tmp/setup-runtime-out/blobs/sha256 -type f -printf "%s %p\n" | sort -nr | head -n 1 | cut -d' ' -f2-)
+
+
+log_on_error cp "$ROOT_DIR/includes/task.yml" "$dest/task.yml"
+# Unpack the rootfs to the output directory.
+tar -xf "$rootfs" -C "$dest/rootfs"
+
+log_on_error echo "Total size of image: $(ls -lh "$rootfs" | awk '{print $5}')"
+
+# Output version JSON
+jq -n --arg hash "$hash" '{ "version": { "hash": $hash }, "metadata": [] }' >&3

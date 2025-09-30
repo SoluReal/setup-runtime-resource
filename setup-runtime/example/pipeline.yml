@@ -1,0 +1,151 @@
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  # https://github.com/concourse/concourse/pull/9017
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: latest
+    insecure: true
+
+resources:
+- name: setup-runtime
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    dependencies:
+      - wget
+    java:
+      version: 21
+      extra_versions:
+        - 25-graalce
+    nodejs:
+      version: lts
+      yarn:
+        version: 4.10.2
+      pnpm:
+        version: 10.17.1
+    python:
+      version: 3.11
+    gradle:
+      version: 9.0.0
+    maven:
+      version: 3.9.9
+    docker:
+      enabled: true
+
+- name: setup-runtime-wolfi-base
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    base_image:
+      name: cgr.dev/chainguard/wolfi-base
+    java:
+      version: 25-amzn
+    nodejs:
+      version: lts
+    python:
+      version: 3.11
+    gradle:
+      version: 9.0.0
+    maven:
+      version: 3.9.9
+    verbose: true
+
+- name: setup-runtime-centos
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    base_image:
+      name: centos
+    java:
+      version: 25-amzn
+    nodejs:
+      version: 20
+    python:
+      version: 3.11
+    gradle:
+      version: 9.0.0
+    maven:
+      version: 3.9.9
+    docker:
+      enabled: true
+    verbose: true
+
+jobs:
+- name: test-setup-runtime
+  plan:
+  - in_parallel:
+    - get: setup-runtime
+    - get: setup-runtime-wolfi-base
+    - get: setup-runtime-centos
+
+  - task: test-image
+    image: setup-runtime
+    config:
+      platform: linux
+      inputs:
+        - name: setup-runtime
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            echo $BASH_ENV
+            echo $ENV
+            echo $PATH
+
+            java --version
+            sdk use java 25-graalce
+            echo "JAVA: $(java --version)"
+
+            native-image --help
+
+            echo "PYTHON: $(python --version)"
+            echo "NODE: $(node --version)"
+            echo "YARN: $(yarn --version)"
+            echo "PNPM: $(pnpm --version)"
+            echo "NPM: $(npm --version)"
+            docker pull alpine
+
+  - task: test-image-wolfi-base
+    image: setup-runtime-wolfi-base
+    config:
+      platform: linux
+      inputs:
+        - name: setup-runtime-wolfi-base
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            echo "Wolfi base"
+            java --version
+            node --version
+            python --version
+            gradle --version
+            mvn --version
+
+  - task: test-image-centos
+    image: setup-runtime-centos
+    config:
+      platform: linux
+      inputs:
+        - name: setup-runtime-centos
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            echo "Centos"
+            whoami
+            echo $BASH_ENV
+            echo $ENV
+            echo $PATH
+            node --version
+            which node || true
+            echo "$JAVA_HOME"
+            java --version
+            python --version
+            mvn --version
+            docker pull alpine

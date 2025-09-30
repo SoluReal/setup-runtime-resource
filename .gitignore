@@ -1,0 +1,5 @@
+tailscale/.env
+secrets
+.DS_Store
+.idea
+.envrc
