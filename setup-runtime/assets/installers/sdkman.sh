@@ -1,23 +1,13 @@
 #!/bin/bash
 
 function sdkman_get_dependencies() {
-  local pkg_mgr="${1}"
-  local config="${2}"
+  local config="${1}"
   java_version=$(jq -r '(.source.java.version // "")' <<< "$config")
   gradle_version=$(jq -r '(.source.gradle.version // "")' <<< "$config")
   maven_version=$(jq -r '(.source.maven.version // "")' <<< "$config")
 
   if [[ -n "$java_version" || -n "$gradle_version" || -n "$maven_version" ]]; then
-    case "$pkg_mgr" in
-      apk)
-        echo "curl unzip zip" ;;
-      apt)
-        echo "curl zip" ;;
-      dnf|yum)
-        echo "curl zip" ;;
-      *)
-        echo "" ;;
-    esac
+    echo "curl zip"
   else
     echo ""
   fi

@@ -52,5 +52,7 @@ services:
       # allow to reach the registry container
       CONCOURSE_WORKER_CONTAINERD_ALLOW_HOST_ACCESS: "true"
       CONCOURSE_WORKER_CONTAINERD_DNS_PROXY_ENABLE: "true"
+      # Running with fuse-only mode should work when using buildah / mmdebstrap.
+      # However, when testing with docker-in-docker, this setting can't be set to fuse-only.
       # https://github.com/concourse/concourse/pull/9017
-      CONCOURSE_WORKER_CONTAINERD_PRIVILEGED_MODE: "fuse-only"
+      # CONCOURSE_WORKER_CONTAINERD_PRIVILEGED_MODE: "fuse-only"

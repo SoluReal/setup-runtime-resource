@@ -31,61 +31,27 @@ resources:
       version: 9.0.0
     maven:
       version: 3.9.9
-    docker:
-      enabled: true
-
-- name: setup-runtime-wolfi-base
-  type: setup-runtime-resource
-  icon: account-hard-hat
-  source:
-    base_image:
-      name: cgr.dev/chainguard/wolfi-base
-    java:
-      version: 25-amzn
-    nodejs:
-      version: lts
-    python:
-      version: 3.11
-    gradle:
-      version: 9.0.0
-    maven:
-      version: 3.9.9
-    verbose: true
-
-- name: setup-runtime-centos
-  type: setup-runtime-resource
-  icon: account-hard-hat
-  source:
-    base_image:
-      name: centos
-    java:
-      version: 25-amzn
-    nodejs:
-      version: 20
-    python:
-      version: 3.11
-    gradle:
-      version: 9.0.0
-    maven:
-      version: 3.9.9
-    docker:
+    testcontainers:
       enabled: true
     verbose: true
 
 jobs:
 - name: test-setup-runtime
   plan:
-  - in_parallel:
-    - get: setup-runtime
-    - get: setup-runtime-wolfi-base
-    - get: setup-runtime-centos
+  - get: setup-runtime
 
   - task: test-image
     image: setup-runtime
+    privileged: true
+    params:
+      # Seems to be only needed because of the setup with docker-compose.
+      DOCKER_OPTS: "--iptables=false --bridge=none"
     config:
       platform: linux
       inputs:
         - name: setup-runtime
+      caches:
+        - path: /cache
       run:
         path: bash
         args:
@@ -106,46 +72,4 @@ jobs:
             echo "YARN: $(yarn --version)"
             echo "PNPM: $(pnpm --version)"
             echo "NPM: $(npm --version)"
-            docker pull alpine
-
-  - task: test-image-wolfi-base
-    image: setup-runtime-wolfi-base
-    config:
-      platform: linux
-      inputs:
-        - name: setup-runtime-wolfi-base
-      run:
-        path: bash
-        args:
-          - -ec
-          - |
-            echo "Wolfi base"
-            java --version
-            node --version
-            python --version
-            gradle --version
-            mvn --version
-
-  - task: test-image-centos
-    image: setup-runtime-centos
-    config:
-      platform: linux
-      inputs:
-        - name: setup-runtime-centos
-      run:
-        path: bash
-        args:
-          - -ec
-          - |
-            echo "Centos"
-            whoami
-            echo $BASH_ENV
-            echo $ENV
-            echo $PATH
-            node --version
-            which node || true
-            echo "$JAVA_HOME"
-            java --version
-            python --version
-            mvn --version
             docker pull alpine

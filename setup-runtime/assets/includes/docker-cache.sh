@@ -56,3 +56,24 @@ function docker_save_cache() {
 
   rm -rf "$tmp_cache"
 }
+
+function teardown_docker() {
+  echo "Checking which images are used since: $START_TIME"
+  END_DATE=$(date +%s)
+
+  echo "docker events: $(docker events --since $START_TIME --until $END_DATE)"
+
+  USED_IMAGES=$(docker events --since $START_TIME --until $END_DATE --format '{{json .}}' \
+    | jq -r 'select(.Type=="container") | .Actor.Attributes.image' | sort | uniq)
+
+  echo "images used $USED_IMAGES"
+  if [[ -n "$USED_IMAGES" ]]; then
+    docker_save_cache $USED_IMAGES
+  else
+    # Cleanup if none of the previously cached images was used.
+    # Might not be the desired behaviour in every case but sticking with this for now.
+    rm -rf $DOCKER_CACHE_DIR
+  fi
+
+  stop_docker
+}

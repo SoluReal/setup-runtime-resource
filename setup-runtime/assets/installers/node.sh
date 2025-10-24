@@ -1,22 +1,12 @@
 #!/bin/bash
 
 function node_get_dependencies() {
-  local pkg_mgr="${1}"
-  local config="${2}"
+  local config="${1}"
   nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$config")
 
   # Only return dependencies if a node version is requested
   if [ -n "$nodejs_version" ]; then
-    case "$pkg_mgr" in
-      apk)
-        echo "curl libstdc++" ;;
-      apt)
-        echo "curl" ;;
-      dnf|yum)
-        echo "curl" ;;
-      *)
-        echo "" ;;
-    esac
+    echo "curl"
   else
     echo ""
   fi
