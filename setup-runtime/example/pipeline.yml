@@ -15,6 +15,7 @@ resources:
   source:
     dependencies:
       - wget
+      - git
     java:
       version: 21
       extra_versions:
@@ -43,9 +44,6 @@ jobs:
   - task: test-image
     image: setup-runtime
     privileged: true
-    params:
-      # Seems to be only needed because of the setup with docker-compose.
-      DOCKER_OPTS: "--iptables=false --bridge=none"
     config:
       platform: linux
       inputs:
@@ -72,4 +70,5 @@ jobs:
             echo "YARN: $(yarn --version)"
             echo "PNPM: $(pnpm --version)"
             echo "NPM: $(npm --version)"
-            docker pull alpine
+            
+            podman --version

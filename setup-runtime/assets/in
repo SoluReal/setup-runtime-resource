@@ -97,8 +97,6 @@ info "cleaning final image..."
 log_on_error buildah run "$ctr" -- bash -lc "apt autoremove -y && apt clean -y"
 info "cleaning completed"
 
-testcontainers_finalize $ctr $payload
-
 # By squashing the image we have only one layer containing the rootfs
 log_on_error buildah commit --squash -D --rm "$ctr" "setup-runtime-image"
 log_on_error buildah push setup-runtime-image oci:/tmp/setup-runtime-out

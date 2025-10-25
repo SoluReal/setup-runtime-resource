@@ -23,10 +23,13 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      python:
-        version: 3.11
+      dependencies:
+        - git
+      java:
+        version: 25
       testcontainers:
         enabled: true
+      verbose: true
 
 jobs:
   - name: test-setup-runtime
@@ -37,12 +40,9 @@ jobs:
       - task: test-image
         image: setup-runtime
         privileged: true
-        params:
-          # Seems to be only needed because of the setup with docker-compose.
-          DOCKER_OPTS: "--iptables=false --bridge=none"
         config:
           platform: linux
-          cache:
+          caches:
             - path: /cache
           inputs:
             - name: setup-runtime
@@ -52,4 +52,6 @@ jobs:
             args:
               - -ec
               - |  
-                echo "PYTHON: $(python --version)"
+                echo $XDG_RUNTIME_DIR
+                podman --version
+
