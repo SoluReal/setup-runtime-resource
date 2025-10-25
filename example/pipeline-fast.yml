@@ -23,12 +23,11 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
+      hook: |
+        curl -fSL https://github.com/hairyhenderson/gomplate/releases/download/v4.3.3/gomplate_linux-arm64 -o /usr/local/bin/gomplate
+        chmod +x /usr/local/bin/gomplate
       dependencies:
-        - git
-      java:
-        version: 25
-      testcontainers:
-        enabled: true
+        - curl
       verbose: true
 
 jobs:
@@ -52,6 +51,5 @@ jobs:
             args:
               - -ec
               - |  
-                echo $XDG_RUNTIME_DIR
-                podman --version
+                gomplate --version
 

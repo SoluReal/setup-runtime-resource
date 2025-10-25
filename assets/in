@@ -27,6 +27,7 @@ extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payl
 repository=$(jq -r '(.source.repository // "")' <<< "$payload")
 username=$(jq -r '(.source.username // "")' <<< "$payload")
 password=$(jq -r '(.source.password // "")' <<< "$payload")
+hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 export VERBOSE=$verbose
 
@@ -36,10 +37,10 @@ fi
 
 # Get apk/apt/dnf dependencies for all installation options and deduplicate
 dependencies="
-  $(sdkman_get_dependencies $payload)
-  $(node_get_dependencies $payload)
-  $(python_get_dependencies $payload)
-  $(testcontainers_get_dependencies $payload)
+  $(sdkman_get_dependencies "$payload")
+  $(node_get_dependencies "$payload")
+  $(python_get_dependencies "$payload")
+  $(testcontainers_get_dependencies "$payload")
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
 
@@ -69,17 +70,17 @@ info "installing candidates"
 # Common setup stuff
 log_on_error buildah run "$ctr" -- bash -lc "touch /root/.bashrc && mkdir -p $RUNTIME_DIR"
 
-sdkman_install $ctr $payload
-java_install $ctr $payload
-gradle_install $ctr $payload
-maven_install $ctr $payload
-node_install $ctr $payload
-python_install $ctr $payload
-testcontainers_install $ctr $payload
+sdkman_install "$ctr" "$payload"
+java_install "$ctr" "$payload"
+gradle_install "$ctr" "$payload"
+maven_install "$ctr" "$payload"
+node_install "$ctr" "$payload"
+python_install "$ctr" "$payload"
+testcontainers_install "$ctr" "$payload"
 
-node_cleanup $ctr $payload
-python_cleanup $ctr $payload
-sdkman_cleanup $ctr $payload
+node_cleanup "$ctr" "$payload"
+python_cleanup "$ctr" "$payload"
+sdkman_cleanup "$ctr" "$payload"
 
 # Delete any .git folders which e.g. nvm use.
 log_on_error buildah run "$ctr" -- bash -lc 'find /root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +'
@@ -92,6 +93,12 @@ fi
 
 set_env "$ctr" "GRADLE_USER_HOME=/cache/gradle"
 set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn"
+
+if [[ -n "$hook" ]]; then
+  info "running custom hook"
+  log_on_error buildah run "$ctr" -- bash -lc "$hook"
+  info "hook finished"
+fi
 
 info "cleaning final image..."
 log_on_error buildah run "$ctr" -- bash -lc "apt autoremove -y && apt clean -y"
