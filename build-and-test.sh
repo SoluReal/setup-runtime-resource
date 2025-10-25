@@ -6,8 +6,8 @@ echo "Running setup-runtime tests..."
 
 export PIPELINE_FILE="${PIPELINE_FILE:-pipeline.yml}"
 
-docker-compose -p concource-resource -f ../docker-compose.yml down
-docker-compose -p concource-resource -f ../docker-compose.yml up -d
+docker-compose -p concource-resource -f docker-compose.yml down
+docker-compose -p concource-resource -f docker-compose.yml up -d
 
 docker buildx build \
   -t localhost:5000/setup-runtime-resource:latest \
