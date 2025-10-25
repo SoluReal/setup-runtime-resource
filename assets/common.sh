@@ -40,12 +40,13 @@ function log_on_error() {
     local tmp
     tmp=$(mktemp)
 
+    set +e
     "$@" >"$tmp" 2>&1
     local status=$?
+    set -e
 
      if [ $status -ne 0 ]; then
-        echo "Command failed: $*"
-        cat "$tmp" >&2
+        cat "$tmp"
         rm -f "$tmp"
         error "failed to setup-runtime. You can set verbose: true to enable more verbose logging."
         exit $status
