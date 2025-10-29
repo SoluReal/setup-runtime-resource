@@ -43,6 +43,8 @@ function node_install() {
     if [ -n "$yarn_version" ]; then
       info "installing yarn..."
       log_on_error buildah run "$ctr" -- bash -lc "corepack prepare yarn@${yarn_version} --activate"
+      set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn"
+
       info "yarn installed"
     fi
     if [ -n "$pnpm_version" ]; then

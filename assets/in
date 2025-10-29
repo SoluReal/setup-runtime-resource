@@ -32,10 +32,10 @@ verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 export VERBOSE=$verbose
 
 if [[ -n "$extra_dependencies" ]]; then
-  info "extra_dependencies=$extra_dependencies"
+  info "dependencies=$extra_dependencies"
 fi
 
-# Get apk/apt/dnf dependencies for all installation options and deduplicate
+# Get apt dependencies for all installation options and deduplicate
 dependencies="
   $(sdkman_get_dependencies "$payload")
   $(node_get_dependencies "$payload")
@@ -91,9 +91,6 @@ if [ ! -z "$extra_dependencies" ]; then
   info "extra_dependencies installed"
 fi
 
-set_env "$ctr" "GRADLE_USER_HOME=/cache/gradle"
-set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn"
-
 if [[ -n "$hook" ]]; then
   info "running custom hook"
   log_on_error buildah run "$ctr" -- bash -lc "$hook"
@@ -124,7 +121,6 @@ rootfs=$(find /tmp/setup-runtime-out/blobs/sha256 -type f -printf "%s %p\n" | so
 # Unpack the rootfs to the output directory.
 tar -xf "$rootfs" -C "$dest/rootfs"
 
-log_on_error echo "Total size of image: $(ls -lh "$rootfs" | awk '{print $5}')"
+info "Total size of image: $(ls -lh "$rootfs" | awk '{print $5}')"
 
-# Output version JSON
 jq -n --arg hash "$hash" '{ "version": { "hash": $hash }, "metadata": [] }' >&3
