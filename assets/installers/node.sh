@@ -26,12 +26,15 @@ function node_install() {
         candidate="$nodejs_version"
       fi
 
+
+    add_metadata "nodejs" "$nodejs_version"
     info "installing nodejs: $nodejs_version..."
     log_on_error buildah run "$ctr" -- bash -lc "\
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | PROFILE='/root/.bashrc' bash &&
       source /root/.bashrc &&
       nvm install $candidate &&
       npm uninstall -g yarn pnpm || true"
+    set_env "$ctr" "NPM_CONFIG_CACHE=/cache/npm"
     info "nodejs installed"
 
     if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
@@ -44,12 +47,20 @@ function node_install() {
       info "installing yarn..."
       log_on_error buildah run "$ctr" -- bash -lc "corepack prepare yarn@${yarn_version} --activate"
       set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn"
+      add_metadata "yarn" "$yarn_version"
+
+      if [ "$DISABLE_TELEMETRY" = "true" ]; then
+        log_on_error buildah run "$ctr" -- bash -lc "yarn config set --home enableTelemetry 0"
+      fi
 
       info "yarn installed"
     fi
     if [ -n "$pnpm_version" ]; then
       info "installing pnpm: $pnpm_version..."
       log_on_error buildah run "$ctr" -- bash -lc "corepack prepare pnpm@${pnpm_version} --activate"
+      set_env "$ctr" "PNPM_STORE_PATH=/cache/pnpm"
+      add_metadata "pnpm" "$pnpm_version"
+
       info "pnpm installed"
     fi
   fi

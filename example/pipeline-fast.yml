@@ -29,6 +29,10 @@ resources:
       dependencies:
         - curl
       verbose: true
+      java:
+        version: 21
+      telemetry:
+        disable: true
 
 jobs:
   - name: test-setup-runtime

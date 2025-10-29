@@ -28,6 +28,7 @@ function python_install() {
       export PATH=\"\$HOME/.pyenv/bin:\$PATH\" &&
       pyenv install ${python_version} && pyenv global ${python_version}"
     info "python installed"
+    add_metadata "python" "$python_version"
   fi
 }
 

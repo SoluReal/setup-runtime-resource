@@ -22,6 +22,7 @@ function java_install() {
       install_java="$java_version"
     fi
     info "installing default java candidate: $install_java..."
+    add_metadata "java" "$install_java"
     log_on_error buildah run "$ctr" -- bash -lc "
       sdk install java $install_java &&
       sdk use java $install_java"

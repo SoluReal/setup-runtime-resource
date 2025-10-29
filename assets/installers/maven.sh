@@ -15,5 +15,6 @@ function maven_install() {
       touch ~/.m2/settings.xml &&
       echo '<settings><localRepository>/cache/maven</localRepository></settings>' > ~/.m2/settings.xml"
     info "maven installed"
+    add_metadata "maven" "$maven_version"
   fi
 }

@@ -20,5 +20,7 @@ function testcontainers_install() {
     # See: https://java.testcontainers.org/supported_docker_environment/
     set_env $ctr "TESTCONTAINERS_RYUK_DISABLED=true"
     set_env $ctr "DOCKER_HOST=/run/podman/podman.sock"
+
+    add_metadata "testcontainers" "true"
   fi
 }

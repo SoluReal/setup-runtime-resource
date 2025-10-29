@@ -33,6 +33,14 @@ function set_env() {
   buildah config --env "$env" "$ctr"
 }
 
+function add_metadata() {
+  local key="${1}"
+  local value="${2}"
+
+  touch /tmp/metadata
+  echo "{\"name\": \"$key\", \"value\": \"$value\"}" >> /tmp/metadata
+}
+
 function log_on_error() {
   if [ "$VERBOSE" = "true" ]; then
     "$@"

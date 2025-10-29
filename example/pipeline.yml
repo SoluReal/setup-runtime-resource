@@ -37,6 +37,8 @@ resources:
       version: 3.9.9
     testcontainers:
       enabled: true
+    telemetry:
+      disable: true
     verbose: true
 
 jobs:

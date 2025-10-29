@@ -29,7 +29,9 @@ username=$(jq -r '(.source.username // "")' <<< "$payload")
 password=$(jq -r '(.source.password // "")' <<< "$payload")
 hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
+telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
 export VERBOSE=$verbose
+export DISABLE_TELEMETRY=$telemetry
 
 if [[ -n "$extra_dependencies" ]]; then
   info "dependencies=$extra_dependencies"
@@ -86,14 +88,14 @@ sdkman_cleanup "$ctr" "$payload"
 log_on_error buildah run "$ctr" -- bash -lc 'find /root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +'
 
 if [ ! -z "$extra_dependencies" ]; then
-  info "installing extra_dependencies..."
+  info "installing dependencies..."
   log_on_error buildah run "$ctr" -- bash -lc "apt-get update && apt-get install -y $extra_dependencies"
-  info "extra_dependencies installed"
+  info "dependencies installed"
 fi
 
 if [[ -n "$hook" ]]; then
   info "running custom hook"
-  log_on_error buildah run "$ctr" -- bash -lc "$hook"
+  log_on_error buildah run "$ctr" -- bash -lc "set -e;$hook"
   info "hook finished"
 fi
 
@@ -121,6 +123,12 @@ rootfs=$(find /tmp/setup-runtime-out/blobs/sha256 -type f -printf "%s %p\n" | so
 # Unpack the rootfs to the output directory.
 tar -xf "$rootfs" -C "$dest/rootfs"
 
-info "Total size of image: $(ls -lh "$rootfs" | awk '{print $5}')"
+info "Total size of setup-runtime rootfs: $(ls -lh "$rootfs" | awk '{print $5}')"
 
-jq -n --arg hash "$hash" '{ "version": { "hash": $hash }, "metadata": [] }' >&3
+touch /tmp/metadata
+
+METADATA=$(cat /tmp/metadata | tr -s '\n' ',' | sed 's/,$//')
+
+jq -n \
+  --arg hash "$hash" \
+  "{ version: { hash: \$hash }, metadata: [$METADATA] }" >&3
