@@ -26,7 +26,6 @@ function node_install() {
         candidate="$nodejs_version"
       fi
 
-
     add_metadata "nodejs" "$nodejs_version"
     info "installing nodejs: $nodejs_version..."
     log_on_error buildah run "$ctr" -- bash -lc "\
@@ -34,7 +33,7 @@ function node_install() {
       source /root/.bashrc &&
       nvm install $candidate &&
       npm uninstall -g yarn pnpm || true"
-    set_env "$ctr" "NPM_CONFIG_CACHE=/cache/npm"
+    set_env "$ctr" "NPM_CONFIG_CACHE=/cache/npm && mkdir -p /cache/npm"
     info "nodejs installed"
 
     if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
@@ -46,7 +45,7 @@ function node_install() {
     if [ -n "$yarn_version" ]; then
       info "installing yarn..."
       log_on_error buildah run "$ctr" -- bash -lc "corepack prepare yarn@${yarn_version} --activate"
-      set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn"
+      set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn && mkdir -p /cache/yarn"
       add_metadata "yarn" "$yarn_version"
 
       if [ "$DISABLE_TELEMETRY" = "true" ]; then
@@ -58,7 +57,7 @@ function node_install() {
     if [ -n "$pnpm_version" ]; then
       info "installing pnpm: $pnpm_version..."
       log_on_error buildah run "$ctr" -- bash -lc "corepack prepare pnpm@${pnpm_version} --activate"
-      set_env "$ctr" "PNPM_STORE_PATH=/cache/pnpm"
+      set_env "$ctr" "PNPM_STORE_PATH=/cache/pnpm && mkdir -p /cache/pnpm"
       add_metadata "pnpm" "$pnpm_version"
 
       info "pnpm installed"
