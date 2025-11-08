@@ -43,7 +43,7 @@ resources:
     security:
       mode: strictest
       # mode: disabled # not recommended
-      # mode: recommended # default (scans rootfs only in get step)
+      # mode: recommended # default (scans rootfs only in get step as a balance between security and performance)
     verbose: true
 
 jobs:
@@ -55,40 +55,4 @@ jobs:
     image: setup-runtime
     privileged: true
     config:
-      platform: linux
-      inputs:
-        - name: setup-runtime
-      caches:
-        - path: /cache
-      run:
-        path: bash
-        args:
-          - -ec
-          - |
-            echo $BASH_ENV
-            echo $ENV
-            echo $PATH
-
-            java --version
-            sdk use java 25-graalce
-            echo "JAVA: $(java --version)"
-
-            native-image --help
-
-            echo "PYTHON: $(python --version)"
-            echo "NODE: $(node --version)"
-            echo "YARN: $(yarn --version)"
-            echo "PNPM: $(pnpm --version)"
-            echo "NPM: $(npm --version)"
-            
-            docker --version
-            
-            echo "FROM alpine" > Dockerfile
-            docker build -t runtime-test .
-
-            docker run -d --name nginx-server -p 8080:80 docker.io/nginx
-            sleep 5
-            docker stop nginx-server
-
-            # Do the hooks work?
-            gomplate --version
+      ((TASK_CONFIG))

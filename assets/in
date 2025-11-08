@@ -108,6 +108,16 @@ info "cleaning completed"
 # Do this at the last step since this will change bashrc to start the docker daemon.
 finalize_testcontainers "$ctr"
 
+_fail_on_severity="critical"
+if [ "$security_mode" = "strictest" ]; then
+  _fail_on_severity="high"
+fi
+if [[ -n "$fail_on_severity" ]]; then
+  _fail_on_severity="$fail_on_severity"
+fi
+set_env "$ctr" "SECURITY_MODE=$security_mode"
+set_env "$ctr" "FAIL_ON_SEVERITY=$_fail_on_severity"
+
 # By squashing the image we have only one layer containing the rootfs
 log_on_error buildah commit --squash -D --rm "$ctr" "setup-runtime-image"
 log_on_error buildah push setup-runtime-image oci:/tmp/setup-runtime-out
@@ -129,13 +139,6 @@ rootfs=$(find /tmp/setup-runtime-out/blobs/sha256 -type f -printf "%s %p\n" | so
 tar -xf "$rootfs" -C "$dest/rootfs"
 
 if [ "$security_mode" = "strictest" ] || [ "$security_mode" = "strict" ] || [ "$security_mode" = "recommended" ]; then
-  _fail_on_severity="critical"
-  if [ "$security_mode" = "strictest" ]; then
-    _fail_on_severity="high"
-  fi
-  if [[ -n "$extra_dependencies" ]]; then
-    _fail_on_severity="$fail_on_severity"
-  fi
   info "Scanning container rootfs for security vulnerabilities (fail on severity: $_fail_on_severity)"
 
   grype db update

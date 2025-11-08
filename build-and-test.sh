@@ -25,7 +25,8 @@ fly -t test pipelines --json \
   | jq -r ".[] | select(.name==\"$PIPELINE_NAME\") | .name" \
   | xargs -n1 -I{} fly -t test destroy-pipeline -p {} -n
 
-fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n
+fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n\
+  --yaml-var "TASK_CONFIG=$(cat example/task.yml)"
 
 fly -t test unpause-pipeline -p $PIPELINE_NAME
 
