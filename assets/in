@@ -147,8 +147,8 @@ fi
 if [ "$security_mode" = "strictest" ] || [ "$security_mode" = "strict" ] || [ "$security_mode" = "recommended" ]; then
   info "Scanning container rootfs for security vulnerabilities (fail on severity: $_fail_on_severity)"
 
-  grype db update
-  grype "dir:$dest/rootfs" --fail-on $_fail_on_severity
+  log_on_error grype db update
+  log_on_error grype "dir:$dest/rootfs" --fail-on $_fail_on_severity
 fi
 
 info "Total size of setup-runtime rootfs: $(ls -lh "$rootfs" | awk '{print $5}')"

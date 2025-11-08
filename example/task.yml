@@ -1,8 +1,5 @@
 platform: linux
 
-inputs:
-  - name: setup-runtime
-
 caches:
   - path: /cache
 
