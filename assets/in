@@ -88,7 +88,8 @@ sdkman_cleanup "$ctr" "$payload"
 log_on_error buildah run "$ctr" -- bash -lc 'find /root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +'
 
 # Remove dependencies that we needed for e.g. compilation.
-log_on_error buildah run "$ctr" -- bash -lc "apt-get purge -y $build_dependencies && apt-get install -y --no-install-recommends ca-certificates"
+log_on_error buildah run "$ctr" -- bash -lc "apt-get purge -y $build_dependencies &&
+  apt-get update && apt-get install -y --no-install-recommends ca-certificates"
 
 if [ ! -z "$extra_dependencies" ]; then
   info "installing dependencies..."
