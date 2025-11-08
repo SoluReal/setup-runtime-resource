@@ -7,7 +7,7 @@ function sdkman_get_dependencies() {
   maven_version=$(jq -r '(.source.maven.version // "")' <<< "$config")
 
   if [[ -n "$java_version" || -n "$gradle_version" || -n "$maven_version" ]]; then
-    echo "curl zip"
+    echo "curl zip unzip"
   else
     echo ""
   fi

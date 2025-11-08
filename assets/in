@@ -30,6 +30,8 @@ password=$(jq -r '(.source.password // "")' <<< "$payload")
 hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
+security_mode=$(jq -r '(.source.security.mode // "recommended")' <<< "$payload")
+fail_on_severity=$(jq -r '(.source.security.fail_on_severity // "")' <<< "$payload")
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
 
@@ -38,13 +40,13 @@ if [[ -n "$extra_dependencies" ]]; then
 fi
 
 # Get apt dependencies for all installation options and deduplicate
-dependencies="
+build_dependencies="
   $(sdkman_get_dependencies "$payload")
   $(node_get_dependencies "$payload")
   $(python_get_dependencies "$payload")
   $(testcontainers_get_dependencies "$payload")
 "
-dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
+build_dependencies=$(echo "$build_dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
 
 if [[ -n "$repository" && -n "$username" && -n "$password" ]]; then
   log_on_error buildah login -u "$username" -p "$password" "$repository"
@@ -52,10 +54,11 @@ fi
 
 ctr=$(buildah from "debian:stable-slim")
 
-if [ ! -z "$dependencies" ]; then
+if [ ! -z "$build_dependencies" ]; then
   info "installing required dependencies..."
   log_on_error buildah run "$ctr" -- bash -lc "apt-get update &&
-    apt-get install -y --no-install-recommends $dependencies && apt autoremove -y && apt clean -y
+    apt-get upgrade &&
+    apt-get install -y --no-install-recommends $build_dependencies && apt autoremove -y && apt clean -y
   "
   info "dependencies installed..."
 fi
@@ -82,6 +85,9 @@ sdkman_cleanup "$ctr" "$payload"
 
 # Delete any .git folders which e.g. nvm use.
 log_on_error buildah run "$ctr" -- bash -lc 'find /root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +'
+
+# Remove dependencies that we needed for e.g. compilation.
+log_on_error buildah run "$ctr" -- bash -lc "apt-get purge -y $build_dependencies && apt-get install -y --no-install-recommends ca-certificates"
 
 if [ ! -z "$extra_dependencies" ]; then
   info "installing dependencies..."
@@ -121,6 +127,20 @@ rootfs=$(find /tmp/setup-runtime-out/blobs/sha256 -type f -printf "%s %p\n" | so
 
 # Unpack the rootfs to the output directory.
 tar -xf "$rootfs" -C "$dest/rootfs"
+
+if [ "$security_mode" = "strictest" ] || [ "$security_mode" = "strict" ] || [ "$security_mode" = "recommended" ]; then
+  _fail_on_severity="critical"
+  if [ "$security_mode" = "strictest" ]; then
+    _fail_on_severity="high"
+  fi
+  if [[ -n "$extra_dependencies" ]]; then
+    _fail_on_severity="$fail_on_severity"
+  fi
+  info "Scanning container rootfs for security vulnerabilities (fail on severity: $_fail_on_severity)"
+
+  grype db update
+  grype "dir:$dest/rootfs" --fail-on $_fail_on_severity
+fi
 
 info "Total size of setup-runtime rootfs: $(ls -lh "$rootfs" | awk '{print $5}')"
 

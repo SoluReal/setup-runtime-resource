@@ -43,7 +43,7 @@ EOF
     log_on_error buildah copy "$ctr" "$ROOT_DIR/includes/docker.sh" "$RUNTIME_DIR/docker/docker.sh"
 
     add_metadata "testcontainers" "true"
-    info "Testcontainers good to go..."
+    info "Testcontainers setup completed (docker installed)..."
   fi
 }
 

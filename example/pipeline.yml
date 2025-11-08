@@ -19,6 +19,7 @@ resources:
     dependencies:
       - wget
       - git
+      - curl
     java:
       version: 21
       extra_versions:
@@ -39,6 +40,10 @@ resources:
       enabled: true
     telemetry:
       disable: true
+    security:
+      mode: strictest
+      # mode: disabled # not recommended
+      # mode: recommended # default (scans rootfs only in get step)
     verbose: true
 
 jobs:
