@@ -9,7 +9,6 @@ Green='\033[0;32m'  # Green
 
 RUNTIME_DIR="/opt/runtimes"
 SDKMAN_DIR="$RUNTIME_DIR/sdkman"
-RUNTIME_USER="runtime"
 
 # Compute a deterministic hash of the .source from stdin JSON
 compute_hash() {

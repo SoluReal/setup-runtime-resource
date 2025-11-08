@@ -54,18 +54,14 @@ ctr=$(buildah from "debian:stable-slim")
 
 if [ ! -z "$dependencies" ]; then
   info "installing required dependencies..."
-  log_on_error buildah run "$ctr" -- bash -lc "apt-get update && apt-get install -y $dependencies && apt autoremove -y && apt clean -y"
+  log_on_error buildah run "$ctr" -- bash -lc "apt-get update &&
+    apt-get install -y --no-install-recommends $dependencies && apt autoremove -y && apt clean -y
+  "
   info "dependencies installed..."
 fi
 
 set_env "$ctr" "BASH_ENV=/root/.bashrc"
 set_env "$ctr" "ENV=/root/.bashrc"
-
-log_on_error buildah run "$ctr" -- bash -lc "useradd -m $RUNTIME_USER -u 1000"
-
-log_on_error buildah run "$ctr" -- sh -lc "
-  echo \"$RUNTIME_USER:100000:65536\" >> /etc/subuid &&
-  echo \"$RUNTIME_USER:100000:65536\" >> /etc/subgid"
 
 info "installing candidates"
 
@@ -89,7 +85,7 @@ log_on_error buildah run "$ctr" -- bash -lc 'find /root -maxdepth 3 -type d -nam
 
 if [ ! -z "$extra_dependencies" ]; then
   info "installing dependencies..."
-  log_on_error buildah run "$ctr" -- bash -lc "apt-get update && apt-get install -y $extra_dependencies"
+  log_on_error buildah run "$ctr" -- bash -lc "apt-get update && apt-get install -y --no-install-recommends $extra_dependencies"
   info "dependencies installed"
 fi
 
@@ -102,6 +98,9 @@ fi
 info "cleaning final image..."
 log_on_error buildah run "$ctr" -- bash -lc "apt autoremove -y && apt clean -y"
 info "cleaning completed"
+
+# Do this at the last step since this will change bashrc to start the docker daemon.
+finalize_testcontainers "$ctr"
 
 # By squashing the image we have only one layer containing the rootfs
 log_on_error buildah commit --squash -D --rm "$ctr" "setup-runtime-image"

@@ -76,7 +76,14 @@ jobs:
             echo "PNPM: $(pnpm --version)"
             echo "NPM: $(npm --version)"
             
-            podman --version
+            docker --version
             
+            echo "FROM alpine" > Dockerfile
+            docker build -t runtime-test .
+
+            docker run -d --name nginx-server -p 8080:80 docker.io/nginx
+            sleep 5
+            docker stop nginx-server
+
             # Do the hooks work?
             gomplate --version

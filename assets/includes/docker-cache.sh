@@ -3,20 +3,10 @@
 DOCKER_CACHE_DIR="/cache/docker"
 
 function docker_load_cache() {
-  # Load cached docker images.
   if [ -d "$DOCKER_CACHE_DIR" ]; then
-    # Load if tar file
-    if ls $DOCKER_CACHE_DIR/*.tar >/dev/null 2>&1; then
-      for file in $DOCKER_CACHE_DIR/*.tar; do
-        docker load -i "$file"
-      done
-    fi
-
-    # Load if tar.gz file
     if ls $DOCKER_CACHE_DIR/*.tar.gz >/dev/null 2>&1; then
       for file in $DOCKER_CACHE_DIR/*.tar.gz; do
-        gunzip "$file"
-        docker load -i "${file/.gz/}"
+        docker load < $file
       done
     fi
   fi
@@ -24,7 +14,7 @@ function docker_load_cache() {
 
 function docker_save_cache() {
   # Note: this function assumes that images are immutable (once cached, subsequent runs don't change the tagged image)
-  local images="${1}"
+  local images="$*"
 
   # Ensure cache directory exists
   if [ ! -d "$DOCKER_CACHE_DIR" ]; then
@@ -41,16 +31,16 @@ function docker_save_cache() {
   fi
 
   for image in $images; do
-    local cached_file="$tmp_cache/$image.tar.gz"
+    safe_image="${image//\//-}"
+    safe_image="${safe_image//:/_}"
+    local cached_file="$tmp_cache/$safe_image.tar.gz"
 
     if [ -f "$cached_file" ]; then
-      # Move back from temp dir to cache dir
-      echo "Restoring cached image: $image"
-      mv "$cached_file" "$DOCKER_CACHE_DIR/"
+      # Move back from temp dir to cache dir since that is faster than exporting again
+      mv "$cached_file" "$DOCKER_CACHE_DIR"
     else
       # Save the image if not in cache
-      echo "Saving image: $image"
-      docker save "$image" | gzip > "$DOCKER_CACHE_DIR/$image.tar.gz"
+      docker save "$image" | gzip > "$DOCKER_CACHE_DIR/$safe_image.tar.gz"
     fi
   done
 
@@ -58,15 +48,13 @@ function docker_save_cache() {
 }
 
 function teardown_docker() {
-  echo "Checking which images are used since: $START_TIME"
-  END_DATE=$(date +%s)
+  set -e
+  DOCKER_END_DATE=$(date +%s)
 
-  echo "docker events: $(docker events --since $START_TIME --until $END_DATE)"
+  USED_IMAGES=$(docker events --since $DOCKER_START_DATE --until $DOCKER_END_DATE --format '{{json .}}' \
+    | jq -r 'select(.Type=="container") | .Actor.Attributes.image' \
+    | sort | uniq | xargs)
 
-  USED_IMAGES=$(docker events --since $START_TIME --until $END_DATE --format '{{json .}}' \
-    | jq -r 'select(.Type=="container") | .Actor.Attributes.image' | sort | uniq)
-
-  echo "images used $USED_IMAGES"
   if [[ -n "$USED_IMAGES" ]]; then
     docker_save_cache $USED_IMAGES
   else
