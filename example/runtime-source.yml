@@ -26,7 +26,12 @@ testcontainers:
 telemetry:
   disable: true
 security:
-  mode: strictest
   # mode: disabled # not recommended
   # mode: recommended # default (scans rootfs only in get step as a balance between security and performance)
+  mode: strictest
+  fail_on_severity: high
+  grype_config:
+    ignore:
+      - vulnerability: GHSA-pwhc-rpq9-4c8w
+      - vulnerability: GHSA-cgrx-mc8f-2prm
 verbose: true

@@ -32,6 +32,7 @@ verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
 security_mode=$(jq -r '(.source.security.mode // "recommended")' <<< "$payload")
 fail_on_severity=$(jq -r '(.source.security.fail_on_severity // "")' <<< "$payload")
+grype_config=$(jq -r '(.source.security.grype_config // "")' <<< "$payload")
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
 
@@ -137,6 +138,11 @@ rootfs=$(find /tmp/setup-runtime-out/blobs/sha256 -type f -printf "%s %p\n" | so
 
 # Unpack the rootfs to the output directory.
 tar -xf "$rootfs" -C "$dest/rootfs"
+
+if [[ -n "$grype_config" ]]; then
+  echo "$grype_config" > ~/.grype.yaml
+  cat ~/.grype.yaml
+fi
 
 if [ "$security_mode" = "strictest" ] || [ "$security_mode" = "strict" ] || [ "$security_mode" = "recommended" ]; then
   info "Scanning container rootfs for security vulnerabilities (fail on severity: $_fail_on_severity)"

@@ -25,6 +25,13 @@ resources:
     source:
       testcontainers:
         enabled: true
+      security:
+        mode: strictest
+        fail_on_severity: high
+        grype_config:
+          ignore:
+            - vulnerability: GHSA-pwhc-rpq9-4c8w
+            - vulnerability: GHSA-cgrx-mc8f-2prm
       verbose: true
 
 jobs:
