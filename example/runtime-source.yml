@@ -27,7 +27,7 @@ telemetry:
   disable: true
 security:
   # mode: disabled # not recommended
-  # mode: recommended # default (scans rootfs only in get step as a balance between security and performance)
+  # mode: default # scans rootfs only in get step as a balance between security and performance
   mode: strictest
   fail_on_severity: high
   grype_config:
