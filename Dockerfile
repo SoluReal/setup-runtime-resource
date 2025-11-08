@@ -1,6 +1,6 @@
 ARG base_image=quay.io/buildah/stable:latest
 
-FROM ghcr.io/sigstore/cosign/cosign:v2.4.1 as cosign-bin
+FROM ghcr.io/sigstore/cosign/cosign:v2.6.1 as cosign-bin
 
 FROM ${base_image} AS resource
 
