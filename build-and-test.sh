@@ -26,7 +26,8 @@ fly -t test pipelines --json \
   | xargs -n1 -I{} fly -t test destroy-pipeline -p {} -n
 
 fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n\
-  --yaml-var "TASK_CONFIG=$(cat example/task.yml)"
+  --yaml-var "TASK_CONFIG=$(cat example/task.yml)" \
+  --yaml-var "SETUP_RUNTIME_SOURCE=$(cat example/runtime-source.yml)"
 
 fly -t test unpause-pipeline -p $PIPELINE_NAME
 

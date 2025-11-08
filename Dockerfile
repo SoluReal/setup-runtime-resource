@@ -1,15 +1,12 @@
 ARG base_image=quay.io/buildah/stable:latest
 
-FROM ghcr.io/sigstore/cosign/cosign:v3.0.2 as cosign-bin
+FROM anchore/grype:v0.103.0-nonroot as grype
 
 FROM ${base_image} AS resource
 
-# Cosign is required to install grype with the -v option (verify signature).
-COPY --from=cosign-bin /ko-app/cosign /usr/local/bin/cosign
+COPY --from=grype /grype /usr/local/bin/grype
 
 RUN dnf -y install jq bash && dnf clean all && rm -rf /var/cache/dnf
-
-RUN curl -sSfL https://get.anchore.io/grype | sudo sh -s -- -b /usr/local/bin -v
 
 COPY assets /opt/resource/
 RUN chmod +x /opt/resource/*

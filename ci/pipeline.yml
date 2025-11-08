@@ -1,0 +1,173 @@
+resources:
+  - name: repo
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/solureal/setup-runtime-resource.git
+      branch: master
+      depth: 1
+
+  - name: setup-runtime-resource-dev
+    type: registry-image
+    icon: docker
+    source:
+      repository: docker.io/solureal/setup-runtime-resource
+      tag: dev
+      username: ((dockerhub-libs-username))
+      password: ((dockerhub-libs-password))
+
+  - name: setup-runtime-resource
+    type: registry-image
+    icon: docker
+    source:
+      repository: docker.io/solureal/setup-runtime-resource
+      tag: latest
+      username: ((dockerhub-libs-username))
+      password: ((dockerhub-libs-password))
+
+  - name: version
+    type: semver
+    icon: tag
+    source:
+      uri: git@github.com:solureal/setup-runtime-resource
+      private_key: ((github-private-key))
+      branch: version
+      driver: git
+      file: version
+
+  - name: repo-release
+    type: github-release
+    icon: package-variant-closed
+    source:
+      owner: solureal
+      repository: setup-runtime-resource
+      access_token: ((github-apitoken))
+
+  - name: test-setup-runtime
+    type: setup-runtime-resource
+    icon: account-hard-hat
+    source:
+      ((SETUP_RUNTIME_SOURCE))
+
+jobs:
+  - name: build
+    plan:
+      - get: repo
+        trigger: true
+      - task: build
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+          params:
+            IMAGE_PLATFORM: linux/arm64,linux/amd64
+            OUTPUT_OCI: true
+          caches:
+            - path: cache
+          inputs:
+            - name: repo
+              path: .
+          outputs:
+            - name: image
+          run:
+            path: build
+      - put: setup-runtime-resource-dev
+        params:
+          image: image/image
+
+  - name: test
+    plan:
+      - in_parallel:
+        - get: test-setup-runtime
+        - get: setup-runtime-resource-dev
+          passed: [ build ]
+        - get: repo
+          passed: [ build ]
+      - task: test-image
+        image: test-setup-runtime
+        privileged: true
+        file: repo/example/task.yml
+
+  - name: publish-major
+    plan:
+      - in_parallel:
+        - get: repo
+          passed: [ test ]
+        - get: version
+          params: { bump: major }
+        - get: setup-runtime-resource-dev
+          passed: [ test ]
+          params:
+            format: oci-layout
+      - load_var: version
+        file: version/version
+      - in_parallel: &upload-release
+        - put: setup-runtime-resource
+          no_get: true
+          params:
+            image: setup-runtime-resource-dev/oci
+            version: ((.:version))
+            bump_aliases: true
+        - put: repo-release
+          no_get: true
+          inputs: detect
+          params:
+            commitish: repo/.git/ref
+            generate_release_notes: true
+            name: version/version
+            tag: version/version
+            tag_prefix: v
+      - put: version
+        no_get: true
+        inputs: detect
+        params:
+          file: version/version
+
+  - name: publish-minor
+    plan:
+      - in_parallel:
+        - get: repo
+          passed: [ test ]
+        - get: version
+          params: { bump: minor }
+        - get: setup-runtime-resource-dev
+          passed: [ test ]
+          params:
+            format: oci-layout
+      - load_var: version
+        file: version/version
+      - in_parallel: *upload-release
+      - put: version
+        no_get: true
+        inputs: detect
+        params:
+          file: version/version
+
+  - name: publish-patch
+    plan:
+      - in_parallel:
+        - get: repo
+          passed: [ test ]
+        - get: version
+          params: { bump: patch }
+        - get: setup-runtime-resource-dev
+          passed: [ test ]
+          params: { format: oci-layout }
+      - load_var: version
+        file: version/version
+      - in_parallel: *upload-release
+      - put: version
+        no_get: true
+        inputs: detect
+        params: { file: version/version }
+
+resource_types:
+  - name: setup-runtime-resource
+    type: registry-image
+    privileged: true
+    source:
+      repository: solureal/setup-runtime-resource
+      tag: dev
