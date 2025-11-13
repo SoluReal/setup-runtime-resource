@@ -5,7 +5,7 @@ function testcontainers_get_dependencies() {
   testcontainers=$(jq -r '(.source.testcontainers.enabled // "")' <<< "$config")
 
   if [ "$testcontainers" = "true" ]; then
-    echo "curl ca-certificates"
+    echo "ca-certificates curl ca-certificates"
   else
     echo ""
   fi

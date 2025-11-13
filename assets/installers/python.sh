@@ -9,7 +9,7 @@ function python_get_dependencies() {
 
   # Install pyenv only if python key or version is provided
   if [ -n "$python_version" ]; then
-    echo "curl git $apt_deps"
+    echo "ca-certificates curl git $apt_deps"
   else
     echo ""
   fi

@@ -6,7 +6,7 @@ function node_get_dependencies() {
 
   # Only return dependencies if a node version is requested
   if [ -n "$nodejs_version" ]; then
-    echo "curl"
+    echo "curl ca-certificates"
   else
     echo ""
   fi
