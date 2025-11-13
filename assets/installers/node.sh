@@ -29,6 +29,7 @@ function node_install() {
     add_metadata "nodejs" "$nodejs_version"
     info "installing nodejs: $nodejs_version..."
     log_on_error buildah run "$ctr" -- bash -lc "\
+      set -e
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | PROFILE='/root/.bashrc' bash &&
       source /root/.bashrc &&
       nvm install $candidate &&
