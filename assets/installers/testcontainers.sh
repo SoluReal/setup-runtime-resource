@@ -49,8 +49,12 @@ EOF
 
 function finalize_testcontainers() {
   local ctr="${1}"
+  local config="${2}"
+  testcontainers=$(jq -r '(.source.testcontainers.enabled // "")' <<< "$config")
 
-  log_on_error buildah run "$ctr" -- sh -lc "
-    echo 'source $RUNTIME_DIR/docker/docker.sh' >> /root/.bashrc
-  "
+  if [[ "$testcontainers" = "true" ]]; then
+    log_on_error buildah run "$ctr" -- sh -lc "
+      echo 'source $RUNTIME_DIR/docker/docker.sh' >> /root/.bashrc
+    "
+  fi
 }

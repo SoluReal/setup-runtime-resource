@@ -108,7 +108,7 @@ log_on_error buildah run "$ctr" -- bash -lc "apt autoremove -y && apt clean -y"
 info "cleaning completed"
 
 # Do this at the last step since this will change bashrc to start the docker daemon.
-finalize_testcontainers "$ctr"
+finalize_testcontainers "$ctr" "$payload"
 
 _fail_on_severity="critical"
 if [ "$security_mode" = "strictest" ]; then
