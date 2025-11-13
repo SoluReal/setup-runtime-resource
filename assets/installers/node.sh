@@ -28,7 +28,7 @@ function node_install() {
 
     add_metadata "nodejs" "$nodejs_version"
     info "installing nodejs: $nodejs_version..."
-    log_on_error buildah run "$ctr" -- bash -lc "\
+    log_on_error chroot_exec "$ctr" "\
       set -e
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | PROFILE='/root/.bashrc' bash &&
       source /root/.bashrc &&
@@ -39,25 +39,25 @@ function node_install() {
 
     if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
       info "installing corepack..."
-      log_on_error buildah run "$ctr" -- bash -lc "npm install -g corepack"
+      log_on_error chroot_exec "$ctr" "npm install -g corepack"
       info "corepack installed"
     fi
 
     if [ -n "$yarn_version" ]; then
       info "installing yarn..."
-      log_on_error buildah run "$ctr" -- bash -lc "corepack prepare yarn@${yarn_version} --activate"
+      log_on_error chroot_exec "$ctr" "corepack prepare yarn@${yarn_version} --activate"
       set_env "$ctr" "YARN_CACHE_FOLDER=/cache/yarn && mkdir -p /cache/yarn"
       add_metadata "yarn" "$yarn_version"
 
       if [ "$DISABLE_TELEMETRY" = "true" ]; then
-        log_on_error buildah run "$ctr" -- bash -lc "yarn config set --home enableTelemetry 0"
+        log_on_error chroot_exec "$ctr" "yarn config set --home enableTelemetry 0"
       fi
 
       info "yarn installed"
     fi
     if [ -n "$pnpm_version" ]; then
       info "installing pnpm: $pnpm_version..."
-      log_on_error buildah run "$ctr" -- bash -lc "corepack prepare pnpm@${pnpm_version} --activate"
+      log_on_error chroot_exec "$ctr" "corepack prepare pnpm@${pnpm_version} --activate"
       set_env "$ctr" "PNPM_STORE_PATH=/cache/pnpm && mkdir -p /cache/pnpm"
       add_metadata "pnpm" "$pnpm_version"
 
@@ -72,6 +72,6 @@ function node_cleanup() {
   nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$config")
 
   if [ -n "$nodejs_version" ]; then
-    log_on_error buildah run "$ctr" -- bash -lc "nvm cache clear;"
+    log_on_error chroot_exec "$ctr" "nvm cache clear;"
   fi
 }

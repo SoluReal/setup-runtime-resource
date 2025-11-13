@@ -23,7 +23,7 @@ function sdkman_install() {
   if [[ -n "$java_version" || -n "$gradle_version" || -n "$maven_version" ]]; then
     info "installing sdkman..."
     set_env "$ctr" "SDKMAN_DIR=$SDKMAN_DIR"
-    log_on_error buildah run "$ctr" -- bash -lc "
+    log_on_error chroot_exec "$ctr" "
       curl -s 'https://get.sdkman.io?ci=true&rcupdate=false' | bash &&
       echo 'source $SDKMAN_DIR/bin/sdkman-init.sh' >> /root/.bashrc
       "
@@ -34,7 +34,7 @@ function sdkman_install() {
 function sdkman_cleanup() {
   local ctr="${1}"
 
-  log_on_error buildah run "$ctr" -- bash -lc "
+  log_on_error chroot_exec "$ctr" "
     if [[ -d $SDKMAN_DIR ]]; then
         sdk flush archives &&
         sdk flush temp &&

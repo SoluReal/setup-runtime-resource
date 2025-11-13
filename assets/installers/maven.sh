@@ -7,11 +7,11 @@ function maven_install() {
 
   if [ -n "$maven_version" ]; then
     info "installing maven $maven_version..."
-    log_on_error buildah run "$ctr" -- bash -lc "
+    log_on_error chroot_exec "$ctr" "
       sdk install maven $maven_version &&
       sdk use maven $maven_version"
-    log_on_error buildah run "$ctr" -- bash -lc "
-      mkdir pi ~/.m2 &&
+    log_on_error chroot_exec "$ctr" "
+      mkdir -p ~/.m2 &&
       touch ~/.m2/settings.xml &&
       echo '<settings><localRepository>/cache/maven</localRepository></settings>' > ~/.m2/settings.xml"
     info "maven installed"

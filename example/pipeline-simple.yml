@@ -23,16 +23,12 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      testcontainers:
-        enabled: true
-      security:
-        mode: strictest
-        fail_on_severity: high
-        grype_config:
-          ignore:
-            - vulnerability: GHSA-pwhc-rpq9-4c8w
-            - vulnerability: GHSA-cgrx-mc8f-2prm
-      verbose: true
+      dependencies:
+        - git
+      nodejs:
+        version: lts
+        yarn:
+          version: 4.10.3
 
 jobs:
   - name: test-setup-runtime
@@ -42,7 +38,6 @@ jobs:
           - get: some-resource
       - task: test-image
         image: setup-runtime
-        privileged: true
         config:
           platform: linux
           caches:
@@ -55,10 +50,6 @@ jobs:
             args:
               - -ec
               - |  
-                echo "FROM alpine" > Dockerfile
-                docker build -t runtime-test .
-                
-                docker run -d --name nginx-server -p 8080:80 docker.io/nginx
-                docker run -d --name nginx-server-non-stop -p 8081:80 docker.io/nginx:1.21.6
-                sleep 5
-                docker stop nginx-server                
+                npm --version
+                node --version
+                yarn --version           

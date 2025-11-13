@@ -9,7 +9,7 @@ function java_install() {
   if [[ -n "$java_version" ]]; then
     echo "$extra_versions" | jq '.[]' | while read -r version; do
       info "installing extra java candidate: $version..."
-      log_on_error buildah run "$ctr" -- bash -lc "sdk install java $version"
+      log_on_error chroot_exec "$ctr" "sdk install java $version"
       info "extra java candidate installed: $version"
     done
 
@@ -23,7 +23,7 @@ function java_install() {
     fi
     info "installing default java candidate: $install_java..."
     add_metadata "java" "$install_java"
-    log_on_error buildah run "$ctr" -- bash -lc "
+    log_on_error chroot_exec "$ctr" "
       sdk install java $install_java &&
       sdk use java $install_java"
     info "default java candidate installed: $install_java"
