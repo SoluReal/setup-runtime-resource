@@ -1,8 +1,6 @@
 resource_types:
   - name: setup-runtime-resource
     type: registry-image
-    # See: https://github.com/concourse/concourse/pull/9017
-    privileged: true
     source:
       repository: registry:5000/setup-runtime-resource
       tag: latest
@@ -23,12 +21,8 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      dependencies:
-        - git
-      nodejs:
-        version: lts
-        yarn:
-          version: 4.10.3
+      testcontainers:
+        enabled: true
 
 jobs:
   - name: test-setup-runtime
@@ -37,6 +31,7 @@ jobs:
           - get: setup-runtime
           - get: some-resource
       - task: test-image
+        privileged: true
         image: setup-runtime
         config:
           platform: linux
@@ -49,7 +44,6 @@ jobs:
             path: bash
             args:
               - -ec
-              - |  
-                npm --version
-                node --version
-                yarn --version           
+              - |
+                ls -lah /var/runtimes
+                docker --version

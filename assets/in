@@ -9,22 +9,13 @@ export ROOT_DIR=$(dirname $0)
 source $ROOT_DIR/common.sh
 source $ROOT_DIR/installers/testcontainers.sh
 source $ROOT_DIR/installers/sdkman.sh
-source $ROOT_DIR/installers/java.sh
-source $ROOT_DIR/installers/gradle.sh
-source $ROOT_DIR/installers/maven.sh
-source $ROOT_DIR/installers/node.sh
-source $ROOT_DIR/installers/python.sh
-
-trap 'umount_chroot "$WORK_ROOTFS" || true' EXIT
 
 dest=$1
 
 payload="$(cat <&0)"
 
-# Compute hash for current payload
 hash=$(compute_hash "$payload")
 
-# Extract properties from source payload
 extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payload")
 hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
@@ -32,84 +23,61 @@ telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
 security_mode=$(jq -r '(.source.security.mode // "default")' <<< "$payload")
 fail_on_severity=$(jq -r '(.source.security.fail_on_severity // "")' <<< "$payload")
 grype_config=$(jq -r '(.source.security.grype_config // "")' <<< "$payload")
+
+export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
+export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
+export extra_java_versions=$(jq -r '(.source.java.extra_versions // [])' <<< "$payload")
+
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
 
-# Get apt dependencies for all installation options and deduplicate
-build_dependencies="
-  $(sdkman_get_dependencies "$payload")
-  $(node_get_dependencies "$payload")
-  $(python_get_dependencies "$payload")
+dependencies="
+  $extra_dependencies
+  $(sdkman_get_dependencies)
   $(testcontainers_get_dependencies "$payload")
 "
-build_dependencies=$(echo "$build_dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
+dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
 
-# Bootstrap a Debian rootfs using mmdebstrap
-info "Bootstrapping Debian rootfs with mmdebstrap..."
-rm -rf "$WORK_ROOTFS"
-mkdir -p "$WORK_ROOTFS"
-# Include minimal tools; we'll apt-get others as needed
-log_on_error mmdebstrap --variant=minbase \
-  --include="bash ca-certificates curl gnupg jq" \
-  stable "$WORK_ROOTFS" "http://deb.debian.org/debian"
+info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 
-mount_chroot "$WORK_ROOTFS"
+WORK_ROOTFS="/tmp/work-rootfs.tar"
 
-# Ensure base dirs and bashrc
-log_on_error chroot_exec "$WORK_ROOTFS" "touch /root/.bashrc && mkdir -p $RUNTIME_DIR"
+DEBIAN_VERSION=trixie
+if [[ "$testcontainers_enabled" = "true" ]]; then
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
 
-# Install build-time deps if any
-if [ -n "$build_dependencies" ]; then
-  info "installing required dependencies..."
-  log_on_error chroot_exec "$WORK_ROOTFS" "apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends $build_dependencies && apt autoremove -y && apt clean -y"
-  info "dependencies installed..."
-fi
+  # Add the repository to Apt sources:
+  tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $DEBIAN_VERSION
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+fi > /dev/null
 
-set_env "$WORK_ROOTFS" "BASH_ENV=/root/.bashrc"
-set_env "$WORK_ROOTFS" "ENV=/root/.bashrc"
+log_on_error mmdebstrap --variant=essential \
+  --mode=fakechroot \
+  --include="$dependencies" \
+  --aptopt='Acquire::Languages "none"' \
+  --aptopt='Apt::Install-Recommends "false"' \
+  --aptopt='APT::Get::Install-Suggests "false"' \
+  --dpkgopt='path-exclude=/usr/share/man/*' \
+  --dpkgopt='path-include=/usr/share/man/man[1-9]/*' \
+  --dpkgopt='path-exclude=/usr/share/locale/*' \
+  --dpkgopt='path-include=/usr/share/locale/locale.alias' \
+  --dpkgopt='path-exclude=/usr/share/doc/*' \
+  --dpkgopt='path-include=/usr/share/doc/*/copyright' \
+  --dpkgopt='path-include=/usr/share/doc/*/changelog.Debian.*' \
+  --skip=output/dev \
+  --hook-dir=$ROOT_DIR/hooks \
+  $DEBIAN_VERSION "$WORK_ROOTFS"
 
-info "installing candidates"
-
-sdkman_install "$WORK_ROOTFS" "$payload"
-java_install "$WORK_ROOTFS" "$payload"
-gradle_install "$WORK_ROOTFS" "$payload"
-maven_install "$WORK_ROOTFS" "$payload"
-node_install "$WORK_ROOTFS" "$payload"
-python_install "$WORK_ROOTFS" "$payload"
-testcontainers_install "$WORK_ROOTFS" "$payload"
-
-node_cleanup "$WORK_ROOTFS" "$payload"
-python_cleanup "$WORK_ROOTFS" "$payload"
-sdkman_cleanup "$WORK_ROOTFS" "$payload"
-
-# Delete any .git folders which e.g. nvm use.
-log_on_error chroot_exec "$WORK_ROOTFS" "find /root -maxdepth 3 -type d -name '.git' ! -path './.git' -exec rm -rf {} +"
-
-# Remove build-time dependencies and keep ca-certificates
-if [ -n "$build_dependencies" ]; then
-  log_on_error chroot_exec "$WORK_ROOTFS" "apt-get purge -y $build_dependencies || true && apt-get update && apt-get install -y --no-install-recommends ca-certificates"
-fi
-
-# Extra runtime dependencies
-if [ -n "$extra_dependencies" ]; then
-  info "installing dependencies..."
-  log_on_error chroot_exec "$WORK_ROOTFS" "apt-get update && apt-get install -y --no-install-recommends $extra_dependencies"
-  info "dependencies installed"
-fi
-
-# Custom hook
-if [ -n "$hook" ]; then
-  info "running custom hook"
-  log_on_error chroot_exec "$WORK_ROOTFS" "set -e; $hook"
-  info "hook finished"
-fi
-
-info "cleaning final image..."
-log_on_error chroot_exec "$WORK_ROOTFS" "apt autoremove -y && apt clean -y"
-info "cleaning completed"
-
-# Do this at the last step since this will change bashrc to start the docker daemon.
-finalize_testcontainers "$WORK_ROOTFS" "$payload"
+mkdir -p "$dest/rootfs/"
+tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
+rm $WORK_ROOTFS
 
 _fail_on_severity="critical"
 if [ "$security_mode" = "strictest" ]; then
@@ -118,12 +86,11 @@ fi
 if [ -n "$fail_on_severity" ]; then
   _fail_on_severity="$fail_on_severity"
 fi
-set_env "$WORK_ROOTFS" "SECURITY_MODE=$security_mode"
-set_env "$WORK_ROOTFS" "FAIL_ON_SEVERITY=$_fail_on_severity"
 
-# Prepare output rootfs
-mkdir -p "$dest/rootfs"
-rsync -aHAX --delete "$WORK_ROOTFS"/ "$dest/rootfs"/
+set_env "SECURITY_MODE=$security_mode"
+set_env "FAIL_ON_SEVERITY=$_fail_on_severity"
+set_env "BASH_ENV=/root/.bashrc"
+set_env "ENV=/root/.bashrc"
 
 # Define env vars to load the bash profile in non interactive shells
 # Add cache environment variables so caching is straightforward
@@ -133,6 +100,9 @@ jq -n "{
 " > "$dest/metadata.json"
 
 log_on_error cat "$dest/metadata.json"
+
+# Copy docker includes into the rootfs.
+cp -r $ROOT_DIR/includes "$dest/rootfs$RUNTIME_DIR"
 
 if [ -n "$grype_config" ]; then
   echo "$grype_config" > ~/.grype.yaml

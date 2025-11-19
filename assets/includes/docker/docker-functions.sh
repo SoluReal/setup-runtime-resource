@@ -69,8 +69,8 @@ sanitize_cgroups() {
 # Setup container environment and start docker daemon in the background.
 start_docker() {
   echo >&2 "Setting up Testcontainers environment..."
-  mkdir -p /var/log
-  mkdir -p /var/run
+  mkdir -p /var/log > /dev/null
+  mkdir -p /var/run > /dev/null
 
   if [ "${cgroups_version}" == 'v1' ]; then
     sanitize_cgroups
