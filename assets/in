@@ -9,6 +9,7 @@ export ROOT_DIR=$(dirname $0)
 source $ROOT_DIR/common.sh
 source $ROOT_DIR/installers/testcontainers.sh
 source $ROOT_DIR/installers/sdkman.sh
+source $ROOT_DIR/installers/node.sh
 
 dest=$1
 
@@ -27,6 +28,9 @@ grype_config=$(jq -r '(.source.security.grype_config // "")' <<< "$payload")
 export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
 export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
 export extra_java_versions=$(jq -r '(.source.java.extra_versions // [])' <<< "$payload")
+export nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$payload")
+export yarn_version=$(jq -r '(.source.nodejs.yarn.version // "")' <<< "$payload")
+export pnpm_version=$(jq -r '(.source.nodejs.pnpm.version // "")' <<< "$payload")
 
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
@@ -34,9 +38,10 @@ export DISABLE_TELEMETRY=$telemetry
 dependencies="
   $extra_dependencies
   $(sdkman_get_dependencies)
-  $(testcontainers_get_dependencies "$payload")
+  $(node_get_dependencies)
+  $(testcontainers_get_dependencies)
 "
-dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
+dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
 info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 
@@ -56,11 +61,16 @@ Suites: $DEBIAN_VERSION
 Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
-fi > /dev/null
+fi
+
+include=""
+if [ -n "$dependencies" ]; then
+  include="--include=$dependencies"
+fi
 
 log_on_error mmdebstrap --variant=essential \
   --mode=fakechroot \
-  --include="$dependencies" \
+  "$include" \
   --aptopt='Acquire::Languages "none"' \
   --aptopt='Apt::Install-Recommends "false"' \
   --aptopt='APT::Get::Install-Suggests "false"' \
@@ -76,8 +86,13 @@ log_on_error mmdebstrap --variant=essential \
   $DEBIAN_VERSION "$WORK_ROOTFS"
 
 mkdir -p "$dest/rootfs/"
+tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
 tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
 rm $WORK_ROOTFS
+
+if [[ -n "$hook" ]]; then
+  log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
+fi
 
 _fail_on_severity="critical"
 if [ "$security_mode" = "strictest" ]; then
@@ -101,8 +116,10 @@ jq -n "{
 
 log_on_error cat "$dest/metadata.json"
 
-# Copy docker includes into the rootfs.
-cp -r $ROOT_DIR/includes "$dest/rootfs$RUNTIME_DIR"
+if [[ "$testcontainers_enabled" = "true" ]]; then
+  # Copy docker includes into the rootfs.
+  cp -r $ROOT_DIR/includes/docker "$dest/rootfs$RUNTIME_DIR"
+fi
 
 if [ -n "$grype_config" ]; then
   echo "$grype_config" > ~/.grype.yaml

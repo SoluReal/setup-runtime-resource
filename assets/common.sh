@@ -9,6 +9,8 @@ Green='\033[0;32m'  # Green
 
 export RUNTIME_DIR="/var/runtimes"
 export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
+export NVM_RUNTIME_DIR="$RUNTIME_DIR/nvm"
+export COREPACK_HOME_DIR="$RUNTIME_DIR/corepack"
 export RUNTIME_USER="runtime"
 
 # Compute a deterministic hash of the .source from stdin JSON
@@ -22,6 +24,14 @@ function info() {
 }
 function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
+}
+
+chroot_exec() {
+    local rootfs="${1}"
+    shift
+    local cmd="$*"
+    # Use fakechroot to simulate chroot
+    fakechroot chroot "$rootfs" /bin/bash -lc "source /root/.bashrc; $cmd"
 }
 
 function set_env() {

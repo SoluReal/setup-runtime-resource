@@ -21,9 +21,13 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      testcontainers:
-        enabled: true
-
+      verbose: true
+      nodejs:
+        version: lts
+        yarn:
+          version: 4.10.2
+        pnpm:
+          version: 10.17.1
 jobs:
   - name: test-setup-runtime
     plan:
@@ -45,5 +49,6 @@ jobs:
             args:
               - -ec
               - |
-                ls -lah /var/runtimes
-                docker --version
+                node --version
+                yarn --version
+                pnpm --version
