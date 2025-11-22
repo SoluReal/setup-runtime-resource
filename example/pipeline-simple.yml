@@ -21,13 +21,9 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      verbose: true
-      nodejs:
-        version: lts
-        yarn:
-          version: 4.10.2
-        pnpm:
-          version: 10.17.1
+      java:
+        version: 21
+
 jobs:
   - name: test-setup-runtime
     plan:
@@ -49,6 +45,4 @@ jobs:
             args:
               - -ec
               - |
-                node --version
-                yarn --version
-                pnpm --version
+                java --version

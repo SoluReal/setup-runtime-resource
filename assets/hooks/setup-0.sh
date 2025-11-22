@@ -4,13 +4,16 @@
 
 set -eu
 
-rootdir="$1"
+chroot_dir="$1"
+source $ROOT_DIR/common.sh
+
+log_info_hook "Installing dependencies"
 
 if [[ "$testcontainers_enabled" = "true" ]]; then
   SOURCEPARTS="/etc/apt/sources.d/"
   eval "$(apt-config shell SOURCEPARTS Dir::Etc::SourceParts/d)"
 
   f="$SOURCEPARTS"/docker.sources
-  mkdir --parents "$(dirname "$rootdir/$f")"
-  cat "$f" >> "$rootdir/$f"
+  mkdir --parents "$(dirname "$chroot_dir/$f")"
+  cat "$f" >> "$chroot_dir/$f"
 fi

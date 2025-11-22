@@ -2,15 +2,17 @@
 
 set -e
 
-rootdir="$1"
+chroot_dir="$1"
+source $ROOT_DIR/common.sh
 
-export SDKMAN_DIR="$rootdir$SDKMAN_RUNTIME_DIR"
+export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
 
 if [[ -n "$java_version" ]]; then
   source $SDKMAN_DIR/bin/sdkman-init.sh
 
   echo "$extra_java_versions" | jq -r '.[]' | while read -r version; do
-    sdk install java $version
+    sdk install java $version &
+    info_spinner "Installing java, candidate: $version" "java candidate $version installed" $!
   done
 
   # Install default version
@@ -21,6 +23,7 @@ if [[ -n "$java_version" ]]; then
   else
     install_java="$java_version"
   fi
-  sdk install java $install_java
+  sdk install java $install_java &
+  info_spinner "Installing java, candidate: $install_java" "Java candidate $install_java installed" $!
   sdk use java $install_java
 fi

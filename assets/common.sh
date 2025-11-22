@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Reset
-Color_Off='\033[0m' # Text Reset
+export Color_Off='\033[0m' # Text Reset
 
 # To print to console with colors
-Red='\033[0;31m'    # Red
-Green='\033[0;32m'  # Green
+export Red='\033[0;31m'    # Red
+export Green='\033[0;32m'  # Green
 
 export RUNTIME_DIR="/var/runtimes"
 export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
@@ -22,6 +22,34 @@ compute_hash() {
 function info() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1"
 }
+
+function log_info_hook() {
+  printf "$Green[setup-runtime] %s$Color_Off\n" "$1" >> $OUTPUT_FILE
+}
+
+function info_spinner() {
+  local progress_message=$1
+  local finished_message=$2
+  local pid=$3
+  local delay=0.05
+  local spin='|/-\'
+
+  if [ "$VERBOSE" = "true" ]; then
+    log_info_hook "$progress_message"
+    wait $pid
+    log_info_hook "$finished_message"
+  else
+    while kill -0 "$pid" 2>/dev/null; do
+        for i in $(seq 0 3); do
+            printf "\r$Green[setup-runtime] %s [%c]$Color_Off" "$progress_message" "${spin:i:1}" >> $OUTPUT_FILE
+            sleep $delay
+        done
+    done
+
+    printf "\r$Green[setup-runtime] %s                                   $Color_Off\n" "$finished_message" >> $OUTPUT_FILE
+  fi
+}
+
 function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
 }
