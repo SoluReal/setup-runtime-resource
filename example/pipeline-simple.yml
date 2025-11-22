@@ -1,8 +1,6 @@
 resource_types:
   - name: setup-runtime-resource
     type: registry-image
-    # See: https://github.com/concourse/concourse/pull/9017
-    privileged: true
     source:
       repository: registry:5000/setup-runtime-resource
       tag: latest
@@ -23,17 +21,13 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      testcontainers:
-        enabled: true
-      security:
-        mode: strictest
-        fail_on_severity: high
-        grype_config:
-          ignore:
-            - vulnerability: GHSA-pwhc-rpq9-4c8w
-            - vulnerability: GHSA-cgrx-mc8f-2prm
       verbose: true
-
+      nodejs:
+        version: lts
+        yarn:
+          version: 4.10.2
+        pnpm:
+          version: 10.17.1
 jobs:
   - name: test-setup-runtime
     plan:
@@ -41,8 +35,8 @@ jobs:
           - get: setup-runtime
           - get: some-resource
       - task: test-image
-        image: setup-runtime
         privileged: true
+        image: setup-runtime
         config:
           platform: linux
           caches:
@@ -54,11 +48,7 @@ jobs:
             path: bash
             args:
               - -ec
-              - |  
-                echo "FROM alpine" > Dockerfile
-                docker build -t runtime-test .
-                
-                docker run -d --name nginx-server -p 8080:80 docker.io/nginx
-                docker run -d --name nginx-server-non-stop -p 8081:80 docker.io/nginx:1.21.6
-                sleep 5
-                docker stop nginx-server                
+              - |
+                node --version
+                yarn --version
+                pnpm --version

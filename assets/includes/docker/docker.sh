@@ -4,8 +4,8 @@
 if [ ! -f /tmp/docker_started ]; then
   touch /tmp/docker_started
 
-  source /opt/runtimes/docker/docker-cache.sh
-  source /opt/runtimes/docker/docker-functions.sh
+  source /var/runtimes/docker/docker-cache.sh
+  source /var/runtimes/docker/docker-functions.sh
 
   # Waits DOCKERD_TIMEOUT seconds for startup (default: 60)
   DOCKERD_TIMEOUT="${DOCKERD_TIMEOUT:-60}"

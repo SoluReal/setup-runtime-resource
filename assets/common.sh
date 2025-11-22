@@ -7,8 +7,11 @@ Color_Off='\033[0m' # Text Reset
 Red='\033[0;31m'    # Red
 Green='\033[0;32m'  # Green
 
-RUNTIME_DIR="/opt/runtimes"
-SDKMAN_DIR="$RUNTIME_DIR/sdkman"
+export RUNTIME_DIR="/var/runtimes"
+export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
+export NVM_RUNTIME_DIR="$RUNTIME_DIR/nvm"
+export COREPACK_HOME_DIR="$RUNTIME_DIR/corepack"
+export RUNTIME_USER="runtime"
 
 # Compute a deterministic hash of the .source from stdin JSON
 compute_hash() {
@@ -23,13 +26,19 @@ function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
 }
 
+chroot_exec() {
+    local rootfs="${1}"
+    shift
+    local cmd="$*"
+    # Use fakechroot to simulate chroot
+    fakechroot chroot "$rootfs" /bin/bash -lc "source /root/.bashrc; $cmd"
+}
+
 function set_env() {
-  local ctr="${1}"
-  local env="${2}"
+  local env_line="${1}"
 
   touch /tmp/env_vars
-  echo $env >> /tmp/env_vars
-  buildah config --env "$env" "$ctr"
+  echo "$env_line" >> /tmp/env_vars
 }
 
 function add_metadata() {

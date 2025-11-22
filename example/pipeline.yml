@@ -1,8 +1,6 @@
 resource_types:
 - name: setup-runtime-resource
   type: registry-image
-  # https://github.com/concourse/concourse/pull/9017
-  privileged: true
   source:
     repository: registry:5000/setup-runtime-resource
     tag: latest

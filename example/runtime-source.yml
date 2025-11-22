@@ -15,12 +15,6 @@ nodejs:
     version: 4.10.2
   pnpm:
     version: 10.17.1
-python:
-  version: 3.11
-gradle:
-  version: 9.0.0
-maven:
-  version: 3.9.9
 testcontainers:
   enabled: true
 telemetry:

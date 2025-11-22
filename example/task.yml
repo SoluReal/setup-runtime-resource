@@ -8,6 +8,7 @@ run:
   args:
     - -ec
     - |
+      ls -lah /var/runtimes/docker
       echo $BASH_ENV
       echo $ENV
       echo $PATH
@@ -18,8 +19,6 @@ run:
       
       native-image --help
       
-      echo "PYTHON: $(python --version)"
-      echo "NODE: $(node --version)"
       echo "YARN: $(yarn --version)"
       echo "PNPM: $(pnpm --version)"
       echo "NPM: $(npm --version)"
@@ -35,3 +34,6 @@ run:
       
       # Do the hooks work?
       gomplate --version
+      curl --help
+      wget --help
+      git --version
