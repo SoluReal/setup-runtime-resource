@@ -1,4 +1,4 @@
-FROM anchore/grype:v0.103.0-nonroot as grype
+FROM anchore/grype:v0.104.0-nonroot as grype
 
 FROM debian:trixie-slim AS resource
 
