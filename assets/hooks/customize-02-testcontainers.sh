@@ -2,8 +2,8 @@
 
 set -e
 
-rootdir="$1"
+chroot_dir="$1"
 
 if [[ "$testcontainers_enabled" = "true" ]]; then
-  echo "source $RUNTIME_DIR/docker/docker.sh" >> $rootdir/root/.bashrc
+  echo "source $RUNTIME_DIR/docker/docker.sh" >> $chroot_dir/root/.bashrc
 fi

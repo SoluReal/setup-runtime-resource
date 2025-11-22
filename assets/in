@@ -68,6 +68,11 @@ if [ -n "$dependencies" ]; then
   include="--include=$dependencies"
 fi
 
+export OUTPUT_FILE=/tmp/info_log
+touch $OUTPUT_FILE
+tail -f "$OUTPUT_FILE" &
+INFO_LOGGER_PID=$!
+
 log_on_error mmdebstrap --variant=essential \
   --mode=fakechroot \
   "$include" \
@@ -83,7 +88,9 @@ log_on_error mmdebstrap --variant=essential \
   --dpkgopt='path-include=/usr/share/doc/*/changelog.Debian.*' \
   --skip=output/dev \
   --hook-dir=$ROOT_DIR/hooks \
-  $DEBIAN_VERSION "$WORK_ROOTFS"
+  "$DEBIAN_VERSION" "$WORK_ROOTFS"
+
+kill $INFO_LOGGER_PID
 
 mkdir -p "$dest/rootfs/"
 tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
