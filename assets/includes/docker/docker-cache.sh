@@ -40,7 +40,7 @@ function docker_save_cache() {
       mv "$cached_file" "$DOCKER_CACHE_DIR"
     else
       # Save the image if not in cache
-      docker save "$image" | gzip > "$DOCKER_CACHE_DIR/$safe_image.tar.gz"
+      docker save "$image" | gzip --fast > "$DOCKER_CACHE_DIR/$safe_image.tar.gz"
     fi
   done
 
