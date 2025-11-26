@@ -52,7 +52,7 @@ function teardown_docker() {
   DOCKER_END_DATE=$(date +%s)
 
   USED_IMAGES=$(docker events --since $DOCKER_START_DATE --until $DOCKER_END_DATE --format '{{json .}}' \
-    | jq -r 'select(.Type=="container") | .Actor.Attributes.image' \
+    | jq -r 'select(.Type=="container") | select(.Action=="start") | .Actor.Attributes.image' \
     | sort | uniq | xargs)
 
   if [[ -n "$USED_IMAGES" ]]; then
