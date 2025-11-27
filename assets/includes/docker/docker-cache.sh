@@ -1,14 +1,30 @@
 #!/bin/bash
 
-DOCKER_CACHE_DIR="/cache/docker"
+export DOCKER_CACHE_DIR="/cache/docker"
 
 function docker_load_cache() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
     if ls $DOCKER_CACHE_DIR/*.tar.gz >/dev/null 2>&1; then
-      for file in $DOCKER_CACHE_DIR/*.tar.gz; do
-        docker load < $file
-      done
+      cores=$(nproc --all)
+      echo $DOCKER_CACHE_DIR/*.tar.gz | xargs -0 -I {} -P "$cores" bash -c 'docker load < $@' _ {}
     fi
+  fi
+}
+
+function save_image() {
+  image=$1
+  tmp_cache=$2
+  safe_image="${image//\//-}"
+  safe_image="${safe_image//:/_}"
+  local cached_file="$tmp_cache/$safe_image.tar.gz"
+
+  if [ -f "$cached_file" ]; then
+    # Move back from temp dir to cache dir since that is faster than exporting again
+    mv "$cached_file" "$DOCKER_CACHE_DIR"
+  else
+    echo "Saving $image"
+    # Save the image if not in cache
+    docker save "$image" | gzip --fast > "$DOCKER_CACHE_DIR/$safe_image.tar.gz"
   fi
 }
 
@@ -30,19 +46,9 @@ function docker_save_cache() {
     mv "$DOCKER_CACHE_DIR"/*.tar.gz "$tmp_cache/" 2>/dev/null || true
   fi
 
-  for image in $images; do
-    safe_image="${image//\//-}"
-    safe_image="${safe_image//:/_}"
-    local cached_file="$tmp_cache/$safe_image.tar.gz"
-
-    if [ -f "$cached_file" ]; then
-      # Move back from temp dir to cache dir since that is faster than exporting again
-      mv "$cached_file" "$DOCKER_CACHE_DIR"
-    else
-      # Save the image if not in cache
-      docker save "$image" | gzip --fast > "$DOCKER_CACHE_DIR/$safe_image.tar.gz"
-    fi
-  done
+  cores=$(nproc --all)
+  export -f save_image
+  echo "$images" | xargs -0 -I {} -P "$cores" bash -c 'save_image $@' _ {} "$tmp_cache"
 
   rm -rf "$tmp_cache"
 }

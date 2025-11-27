@@ -21,8 +21,9 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      java:
-        version: 21
+      testcontainers:
+        enabled: true
+      verbose: true
 
 jobs:
   - name: test-setup-runtime
@@ -43,6 +44,13 @@ jobs:
           run:
             path: bash
             args:
-              - -ec
+              - -xec
               - |
-                java --version
+                ls /cache
+                ls /cache/docker || true
+                echo "FROM alpine" > Dockerfile
+                docker build -t runtime-test .
+                
+                docker run -d --name nginx-server -p 8080:80 docker.io/nginx
+                sleep 5
+                docker stop nginx-server
