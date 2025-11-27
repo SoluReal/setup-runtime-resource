@@ -25,6 +25,7 @@ if [ -n "$nodejs_version" ]; then
   source $NVM_DIR/nvm.sh
 
   nvm install $candidate
+  add_metadata "node" "$(nvm current)"
   npm uninstall -g yarn pnpm || true
 
   export COREPACK_HOME="$chroot_dir/$COREPACK_HOME_DIR"
@@ -36,6 +37,7 @@ if [ -n "$nodejs_version" ]; then
   if [ -n "$yarn_version" ]; then
     corepack prepare yarn@${yarn_version} --activate &
     info_spinner "Installing yarn $yarn_version" "yarn $yarn_version installed" $!
+    add_metadata "yarn" "$yarn_version"
 
     if [ "$DISABLE_TELEMETRY" = "true" ]; then
       yarn config set --home enableTelemetry 0
@@ -45,5 +47,6 @@ if [ -n "$nodejs_version" ]; then
   if [ -n "$pnpm_version" ]; then
     corepack prepare pnpm@${pnpm_version} --activate &
     info_spinner "Installing pnpm $pnpm_version" "pnpm $pnpm_version installed" $!
+    add_metadata "pnpm" "$pnpm_version"
   fi
 fi

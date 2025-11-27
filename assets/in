@@ -96,6 +96,7 @@ mkdir -p "$dest/rootfs/"
 tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
 tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
 rm $WORK_ROOTFS
+mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
@@ -125,7 +126,7 @@ log_on_error cat "$dest/metadata.json"
 
 if [[ "$testcontainers_enabled" = "true" ]]; then
   # Copy docker includes into the rootfs.
-  cp -r $ROOT_DIR/includes/ "$dest/rootfs$RUNTIME_DIR"
+  cp -r $ROOT_DIR/includes/docker "$dest/rootfs$RUNTIME_DIR"
 fi
 
 if [ -n "$grype_config" ]; then

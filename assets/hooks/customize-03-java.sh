@@ -13,6 +13,7 @@ if [[ -n "$java_version" ]]; then
   echo "$extra_java_versions" | jq -r '.[]' | while read -r version; do
     sdk install java $version &
     info_spinner "Installing java, candidate: $version" "java candidate $version installed" $!
+    add_metadata "java" "$version"
   done
 
   # Install default version
@@ -26,4 +27,5 @@ if [[ -n "$java_version" ]]; then
   sdk install java $install_java &
   info_spinner "Installing java, candidate: $install_java" "Java candidate $install_java installed" $!
   sdk use java $install_java
+  add_metadata "java-default" "$install_java"
 fi
