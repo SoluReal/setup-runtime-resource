@@ -12,3 +12,4 @@ RUN apt-get update && \
 
 COPY assets /opt/resource/
 RUN chmod +x /opt/resource/*
+RUN grype db update
