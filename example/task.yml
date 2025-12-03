@@ -32,6 +32,10 @@ run:
       sleep 5
       docker stop nginx-server
       
+      docker run -d --name nginx-server-old -p 8080:80 docker.io/nginx:1.28.0
+      sleep 5
+      docker stop nginx-server
+      
       # Do the hooks work?
       gomplate --version
       curl --help

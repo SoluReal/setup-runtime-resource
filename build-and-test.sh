@@ -32,3 +32,6 @@ fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n\
 fly -t test unpause-pipeline -p $PIPELINE_NAME
 
 fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
+
+# Second run for cache check.
+fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
