@@ -6,7 +6,9 @@ function docker_load_cache() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
     if ls $DOCKER_CACHE_DIR/*.tar.gz >/dev/null 2>&1; then
       cores=$(nproc --all)
-      echo $DOCKER_CACHE_DIR/*.tar.gz | xargs -0 -I {} -P "$cores" bash -c 'docker load < $@' _ {}
+
+      printf '%s\n' $DOCKER_CACHE_DIR/*.tar.gz | \
+        xargs -P "$cores" -I{} bash -c 'docker load < "$1"' _ {}
     fi
   fi
 }
@@ -14,6 +16,12 @@ function docker_load_cache() {
 function save_image() {
   image=$1
   tmp_cache=$2
+
+  # If no tag is specified, assume :latest
+  if [[ "$image" != *:* ]]; then
+    image="$image:latest"
+  fi
+
   safe_image="${image//\//-}"
   safe_image="${safe_image//:/_}"
   local cached_file="$tmp_cache/$safe_image.tar.gz"
@@ -29,7 +37,6 @@ function save_image() {
 }
 
 function docker_save_cache() {
-  # Note: this function assumes that images are immutable (once cached, subsequent runs don't change the tagged image)
   local images="$*"
 
   # Ensure cache directory exists
@@ -48,7 +55,7 @@ function docker_save_cache() {
 
   cores=$(nproc --all)
   export -f save_image
-  echo "$images" | xargs -0 -I {} -P "$cores" bash -c 'save_image $@' _ {} "$tmp_cache"
+  printf '%s\n' $images | xargs -P "$cores" -I{} bash -c 'save_image "$1" "$2"' _ {} "$tmp_cache"
 
   rm -rf "$tmp_cache"
 }
