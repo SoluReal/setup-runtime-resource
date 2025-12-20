@@ -27,7 +27,9 @@ grype_config=$(jq -r '(.source.security.grype_config // "")' <<< "$payload")
 
 export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
 export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
+export sdkman_enabled=$(jq -r '(.source.sdkman.enabled // "false")' <<< "$payload")
 export extra_java_versions=$(jq -r '(.source.java.extra_versions // [])' <<< "$payload")
+export nvm_enabled=$(jq -r '(.source.nvm.enabled // "false")' <<< "$payload")
 export nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$payload")
 export yarn_version=$(jq -r '(.source.nodejs.yarn.version // "")' <<< "$payload")
 export pnpm_version=$(jq -r '(.source.nodejs.pnpm.version // "")' <<< "$payload")
@@ -126,7 +128,7 @@ log_on_error cat "$dest/metadata.json"
 
 if [[ "$testcontainers_enabled" = "true" ]]; then
   # Copy docker includes into the rootfs.
-  cp -r $ROOT_DIR/includes/docker "$dest/rootfs$RUNTIME_DIR"
+  cp -r "$ROOT_DIR/includes/docker" "$dest/rootfs$RUNTIME_DIR"
 fi
 
 if [ -n "$grype_config" ]; then
@@ -145,6 +147,9 @@ info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print 
 touch /tmp/metadata || true
 
 METADATA=$(cat /tmp/metadata 2>/dev/null | tr -s '\n' ',' | sed 's/,$//')
+
+# Cleanup of nodejs if any.
+rm -rf /tmp/node-compile-cache
 
 jq -n \
   --arg hash "$hash" \

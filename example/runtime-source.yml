@@ -22,25 +22,5 @@ telemetry:
 security:
   # mode: disabled # not recommended
   # mode: default # scans rootfs only in get step as a balance between security and performance
-  mode: strictest
-  fail_on_severity: high
-  grype_config:
-    ignore:
-      - vulnerability: GHSA-pwhc-rpq9-4c8w
-      - vulnerability: GHSA-cgrx-mc8f-2prm
-      - vulnerability: CVE-2025-30749
-      - vulnerability: CVE-2024-21147
-      - vulnerability: CVE-2024-20952
-      - vulnerability: CVE-2025-50106
-      - vulnerability: CVE-2024-20918
-      - vulnerability: CVE-2025-59375
-      - vulnerability: CVE-2025-61723
-      - vulnerability: CVE-2025-61725
-      - vulnerability: CVE-2025-9086
-      - vulnerability: CVE-2025-50059
-      - vulnerability: CVE-2025-53066
-      - vulnerability: CVE-2025-21587
-      - vulnerability: CVE-2025-58188
-      - vulnerability: CVE-2025-47907
-      - vulnerability: CVE-2025-58187
+  mode: default
 verbose: true

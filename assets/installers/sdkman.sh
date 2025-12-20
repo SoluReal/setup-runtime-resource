@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function sdkman_get_dependencies() {
-  if [[ -n "$java_version"  ]]; then
+  if [[ -n "$java_version" || "$sdkman_enabled" = "true" ]]; then
     echo "curl zip unzip"
   else
     echo ""

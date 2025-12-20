@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+
 chroot_dir="$1"
 source $ROOT_DIR/common.sh
 export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
@@ -9,9 +10,11 @@ log_info_hook "Cleaning up"
 if [[ -d $SDKMAN_DIR ]]; then
     source $SDKMAN_DIR/bin/sdkman-init.sh
 
+    set +e
     sdk flush archives
     sdk flush temp
     sdk flush broadcast
+    set -e
 fi
 
 export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
