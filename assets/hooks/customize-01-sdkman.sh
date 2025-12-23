@@ -17,6 +17,7 @@ function sdkman_install() {
   # Auto_env doesn't seem to work so disabled (for now at least)
   echo "sdkman_auto_env=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_complete=false" >> "$SDKMAN_DIR/etc/config"
+  echo "sdkman_checksum_enable=true" >> "$SDKMAN_DIR/etc/config"
 }
 
 if [[ -n "$java_version" || "$sdkman_enabled" = "true" ]]; then
