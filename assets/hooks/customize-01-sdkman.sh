@@ -24,3 +24,7 @@ if [[ -n "$java_version" || "$sdkman_enabled" = "true" ]]; then
   sdkman_install &
   info_spinner "Installing sdkman" "Sdkman installed" $!
 fi
+
+if [[ "$sdkman_enabled" = "true" ]]; then
+  add_metadata "sdkman" "true"
+fi
