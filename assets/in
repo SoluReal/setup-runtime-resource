@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -eo pipefail
 
 exec 3>&1 # make stdout available as fd 3 for the result
 exec 1>&2 # redirect all output to stderr for logging
@@ -21,9 +21,6 @@ extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payl
 hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
-security_mode=$(jq -r '(.source.security.mode // "default")' <<< "$payload")
-fail_on_severity=$(jq -r '(.source.security.fail_on_severity // "")' <<< "$payload")
-grype_config=$(jq -r '(.source.security.grype_config // "")' <<< "$payload")
 
 export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
 export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
@@ -89,7 +86,7 @@ log_on_error mmdebstrap --variant=essential \
   --dpkgopt='path-include=/usr/share/doc/*/copyright' \
   --dpkgopt='path-include=/usr/share/doc/*/changelog.Debian.*' \
   --skip=output/dev \
-  --hook-dir=$ROOT_DIR/hooks \
+  --hook-dir="$ROOT_DIR/hooks" \
   "$DEBIAN_VERSION" "$WORK_ROOTFS"
 
 kill $INFO_LOGGER_PID
@@ -104,16 +101,6 @@ if [[ -n "$hook" ]]; then
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
 fi
 
-_fail_on_severity="critical"
-if [ "$security_mode" = "strictest" ]; then
-  _fail_on_severity="high"
-fi
-if [ -n "$fail_on_severity" ]; then
-  _fail_on_severity="$fail_on_severity"
-fi
-
-set_env "SECURITY_MODE=$security_mode"
-set_env "FAIL_ON_SEVERITY=$_fail_on_severity"
 set_env "BASH_ENV=/root/.bashrc"
 set_env "ENV=/root/.bashrc"
 
@@ -129,17 +116,6 @@ log_on_error cat "$dest/metadata.json"
 if [[ "$testcontainers_enabled" = "true" ]]; then
   # Copy docker includes into the rootfs.
   cp -r "$ROOT_DIR/includes/docker" "$dest/rootfs$RUNTIME_DIR"
-fi
-
-if [ -n "$grype_config" ]; then
-  echo "$grype_config" > ~/.grype.yaml
-  cat ~/.grype.yaml
-fi
-
-if [ "$security_mode" = "strictest" ] || [ "$security_mode" = "strict" ] || [ "$security_mode" = "default" ]; then
-  info "Scanning container rootfs for security vulnerabilities (fail on severity: $_fail_on_severity)"
-  log_on_error grype db update
-  log_on_error grype "dir:$dest/rootfs" --fail-on $_fail_on_severity
 fi
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"

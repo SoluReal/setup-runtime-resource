@@ -19,7 +19,6 @@ resources:
       disable: true
     verbose: true
 
-
 jobs:
 - name: test-setup-runtime
   plan:
@@ -41,19 +40,30 @@ jobs:
         args:
           - -ec
           - |
+            assert_contains() {
+              local needle="$1"
+              local input
+            
+              input="$(cat)"
+            
+              if [[ "$input" != *"$needle"* ]]; then
+                echo "Expected '$needle' to be in '$input'"
+                exit 1
+              fi
+            }
+            
             echo "v25.2.1" > .nvmrc
             echo "java=21.0.4-tem" > .sdkmanrc
             
             nvm install
             sdk env install
             
-            sdk current
-            
-            node --version
+            node --version | assert_contains "25.2.1"
             
             # The source ~/.bashrc is rerequired to set the new candidate in the path variable.
             source ~/.bashrc
-            java --version
+            java --version | assert_contains "openjdk 21.0.4"
+            java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.4"
 
             mkdir -p subdir
             echo "v25.2.0" > subdir/.nvmrc
@@ -63,12 +73,15 @@ jobs:
             nvm install
             sdk env install
             
-            node --version
-            java --version
+            node --version | assert_contains "25.2.0"
+            java --version | assert_contains "openjdk 21.0.3"
+            java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.3"
+
             cd ..
             
             nvm use
             sdk env install
             
-            node --version
-            java --version
+            node --version | assert_contains "25.2.1"
+            java --version | assert_contains "openjdk 21.0.4"
+            java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.4"

@@ -2,7 +2,7 @@
 
 # inspired by: https://github.com/deepin-community/mmdebstrap/blob/574048f2a720057b75e56622003932f344dc700a/hooks/copy-host-apt-sources-and-preferences/setup00.sh#L3
 
-set -eu
+set -eo pipefail
 
 chroot_dir="$1"
 source $ROOT_DIR/common.sh

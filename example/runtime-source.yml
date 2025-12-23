@@ -5,6 +5,10 @@ dependencies:
   - wget
   - git
   - curl
+sdkman:
+  enabled: true
+nvm:
+  enabled: true
 java:
   version: 21
   extra_versions:
@@ -19,8 +23,4 @@ testcontainers:
   enabled: true
 telemetry:
   disable: true
-security:
-  # mode: disabled # not recommended
-  # mode: default # scans rootfs only in get step as a balance between security and performance
-  mode: default
 verbose: true

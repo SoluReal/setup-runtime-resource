@@ -1,8 +1,4 @@
-FROM anchore/grype:v0.104.3-nonroot as grype
-
 FROM debian:trixie-slim AS resource
-
-COPY --from=grype /grype /usr/local/bin/grype
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -12,4 +8,3 @@ RUN apt-get update && \
 
 COPY assets /opt/resource/
 RUN chmod +x /opt/resource/*
-RUN grype db update

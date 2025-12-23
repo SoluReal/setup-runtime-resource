@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
 
 chroot_dir="$1"
 source $ROOT_DIR/common.sh
