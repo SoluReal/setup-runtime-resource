@@ -10,6 +10,8 @@ source $ROOT_DIR/common.sh
 source $ROOT_DIR/installers/testcontainers.sh
 source $ROOT_DIR/installers/sdkman.sh
 source $ROOT_DIR/installers/node.sh
+source $ROOT_DIR/installers/pyenv.sh
+source $ROOT_DIR/installers/golang.sh
 
 dest=$1
 
@@ -31,13 +33,24 @@ export nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$payload")
 export yarn_version=$(jq -r '(.source.nodejs.yarn.version // "")' <<< "$payload")
 export pnpm_version=$(jq -r '(.source.nodejs.pnpm.version // "")' <<< "$payload")
 
+export maven_version=$(jq -r '(.source.maven.version // "")' <<< "$payload")
+export maven_wrapper=$(jq -r '(.source.maven.wrapper // "false")' <<< "$payload")
+export gradle_version=$(jq -r '(.source.gradle.version // "")' <<< "$payload")
+export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payload")
+
+export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload")
+export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
+
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
+export DEBUG=$(jq -r '(.source.debug // "false")' <<< "$payload")
 
 dependencies="
   $extra_dependencies
   $(sdkman_get_dependencies)
   $(node_get_dependencies)
+  $(pyenv_get_dependencies)
+  $(golang_get_dependencies)
   $(testcontainers_get_dependencies)
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
@@ -116,7 +129,25 @@ log_on_error cat "$dest/metadata.json"
 if [[ "$testcontainers_enabled" = "true" ]]; then
   # Copy docker includes into the rootfs.
   cp -r "$ROOT_DIR/includes/docker" "$dest/rootfs$RUNTIME_DIR"
+
+  add_trap "teardown_docker" EXIT
 fi
+
+add_trap prepare_cache EXIT
+add_trap 'if [[ "$DEBUG" = "true" ]]; then info "Cache size in $CACHE_DIR:"; info "$(du -sh "$CACHE_DIR" 2>/dev/null)" || true; fi' EXIT
+
+for f in /tmp/traps_*; do
+  if [[ -e "$f" ]]; then
+    sig="${f#/tmp/traps_}"
+    cmds=$(paste -sd ";" "$f")
+    echo "function trap_$sig() {
+  $cmds
+}" >> "$dest/rootfs/root/.bashrc"
+    echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs/root/.bashrc"
+  fi
+done
+
+cat $ROOT_DIR/includes/bashrc.sh >> "$dest/rootfs/root/.bashrc"
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"
 

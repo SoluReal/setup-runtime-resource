@@ -21,7 +21,7 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      testcontainers:
+      pyenv:
         enabled: true
       verbose: true
 
@@ -34,10 +34,13 @@ jobs:
       - task: test-image
         privileged: true
         image: setup-runtime
+        params:
+          DEBUG: true
+          MAX_CACHE_SIZE_MB: 1024
         config:
           platform: linux
           caches:
-            - path: /cache
+            - path: cache
           inputs:
             - name: setup-runtime
             - name: some-resource
@@ -46,15 +49,7 @@ jobs:
             args:
               - -ec
               - |
-                ls /cache
-                ls /cache/docker || true
-                echo "FROM alpine" > Dockerfile
-                docker build -t runtime-test .
-                
-                docker run -d --name nginx-server -p 8080:80 docker.io/nginx
-                sleep 5
-                docker stop nginx-server
-
-                docker run -d --name nginx-server-old -p 8080:80 docker.io/nginx:1.28.0
-                sleep 5
-                docker stop nginx-server
+                echo "3.12.2" > .python-version
+                pyenv install --skip-existing
+                pyenv local
+                python --version

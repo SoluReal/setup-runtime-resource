@@ -15,6 +15,8 @@ resources:
       enabled: true
     nvm:
       enabled: true
+    pyenv:
+      enabled: true
     telemetry:
       disable: true
     verbose: true
@@ -31,10 +33,7 @@ jobs:
       platform: linux
 
       caches:
-        - path: /cache
-        - path: /var/runtimes/sdkman/candidates
-        - path: /var/runtimes/nvm/versions
-
+        - path: cache
       run:
         path: bash
         args:
@@ -85,3 +84,8 @@ jobs:
             node --version | assert_contains "25.2.1"
             java --version | assert_contains "openjdk 21.0.4"
             java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.4"
+        
+            echo "3.12.2" > .python-version
+            pyenv install --skip-existing
+            pyenv local
+            python --version | assert_contains "Python 3.12.2"

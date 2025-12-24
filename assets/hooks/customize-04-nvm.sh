@@ -16,5 +16,6 @@ if [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]]; then
   echo "export COREPACK_HOME=$COREPACK_HOME_DIR" >> $chroot_dir/root/.bashrc
 fi
 if [[ "$nvm_enabled" = "true" ]]; then
+  set_env "NVM_ENABLED=true"
   add_metadata "nvm" "true"
 fi

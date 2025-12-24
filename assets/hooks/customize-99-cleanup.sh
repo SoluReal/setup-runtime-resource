@@ -27,4 +27,9 @@ fi
 find $chroot_dir/root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
 find $chroot_dir/var -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
 
+# Remove apt lists and other temp files
+rm -rf $chroot_dir/var/lib/apt/lists/*
+rm -rf $chroot_dir/var/cache/apt/archives/*
+rm -rf $chroot_dir/tmp/*
+
 log_info_hook "Cleanup finished"

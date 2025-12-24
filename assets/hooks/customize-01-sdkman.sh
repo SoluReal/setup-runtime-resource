@@ -20,11 +20,12 @@ function sdkman_install() {
   echo "sdkman_checksum_enable=true" >> "$SDKMAN_DIR/etc/config"
 }
 
-if [[ -n "$java_version" || "$sdkman_enabled" = "true" ]]; then
+if [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]]; then
   sdkman_install &
   info_spinner "Installing sdkman" "Sdkman installed" $!
 fi
 
 if [[ "$sdkman_enabled" = "true" ]]; then
+  set_env "SDKMAN_ENABLED=true"
   add_metadata "sdkman" "true"
 fi

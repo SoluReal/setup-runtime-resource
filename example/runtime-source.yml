@@ -13,6 +13,14 @@ java:
   version: 21
   extra_versions:
     - 25-graalce
+maven:
+  version: 3.9.6
+gradle:
+  version: 8.5
+pyenv:
+  enabled: true
+golang:
+  version: 1.22.1
 nodejs:
   version: lts
   yarn:

@@ -38,4 +38,10 @@ fly -t test unpause-pipeline -p $PIPELINE_NAME
 fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
 
 # Second run for cache check.
-fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
+OUTPUT=$(fly -t test trigger-job -j "$PIPELINE_NAME/test-setup-runtime" --watch 2>&1 | tee /dev/tty)
+
+# Check if "Downloading" appears in the output
+if echo "$OUTPUT" | grep -q "Download|Pulling"; then
+    echo "Error: 'Downloading' found in logs while the second run should only use caches."
+    exit 1
+fi

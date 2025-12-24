@@ -10,6 +10,8 @@ export Green='\033[0;32m'  # Green
 export RUNTIME_DIR="/var/runtimes"
 export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
 export NVM_RUNTIME_DIR="$RUNTIME_DIR/nvm"
+export PYENV_RUNTIME_DIR="$RUNTIME_DIR/pyenv"
+export GOLANG_RUNTIME_DIR="$RUNTIME_DIR/golang"
 export COREPACK_HOME_DIR="$RUNTIME_DIR/corepack"
 export RUNTIME_USER="runtime"
 
@@ -75,6 +77,14 @@ function add_metadata() {
 
   touch /tmp/metadata
   echo "{\"name\": \"$key\", \"value\": \"$value\"}" >> /tmp/metadata
+}
+
+function add_trap() {
+  local trap_cmd="${1}"
+  local trap_signal="${2:-EXIT}"
+
+  touch "/tmp/traps_$trap_signal"
+  echo "$trap_cmd" >> "/tmp/traps_$trap_signal"
 }
 
 function log_on_error() {

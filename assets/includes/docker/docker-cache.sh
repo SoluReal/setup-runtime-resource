@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export DOCKER_CACHE_DIR="/cache/docker"
+export DOCKER_CACHE_DIR="$CACHE_DIRECTORY/docker"
 
 function docker_load_cache() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
@@ -30,7 +30,7 @@ function save_image() {
     # Move back from temp dir to cache dir since that is faster than exporting again
     mv "$cached_file" "$DOCKER_CACHE_DIR"
   else
-    echo "Saving $image"
+    info "Saving $image"
     # Save the image if not in cache
     docker save "$image" | gzip --fast > "$DOCKER_CACHE_DIR/$safe_image.tar.gz"
   fi
@@ -64,16 +64,17 @@ function teardown_docker() {
   set -e
   DOCKER_END_DATE=$(date +%s)
 
-  USED_IMAGES=$(docker events --since $DOCKER_START_DATE --until $DOCKER_END_DATE --format '{{json .}}' \
+  USED_IMAGES=$(docker events --since "$(cat /tmp/docker-start)" --until $DOCKER_END_DATE --format '{{json .}}' \
     | jq -r 'select(.Type=="container") | select(.Action=="start") | .Actor.Attributes.image' \
     | sort | uniq | xargs)
 
   if [[ -n "$USED_IMAGES" ]]; then
+    info "Caching docker images"
     docker_save_cache $USED_IMAGES
   else
     # Cleanup if none of the previously cached images was used.
     # Might not be the desired behaviour in every case but sticking with this for now.
-    rm -rf $DOCKER_CACHE_DIR
+    rm -rf "$DOCKER_CACHE_DIR"
   fi
 
   stop_docker

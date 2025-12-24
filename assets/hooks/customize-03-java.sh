@@ -29,3 +29,17 @@ if [[ -n "$java_version" ]]; then
   sdk use java $install_java
   add_metadata "java-default" "$install_java"
 fi
+
+if [[ -n "$maven_version" ]]; then
+  source $SDKMAN_DIR/bin/sdkman-init.sh
+  sdk install maven $maven_version &
+  info_spinner "Installing maven, candidate: $maven_version" "Maven candidate $maven_version installed" $!
+  add_metadata "maven" "$maven_version"
+fi
+
+if [[ -n "$gradle_version" ]]; then
+  source $SDKMAN_DIR/bin/sdkman-init.sh
+  sdk install gradle $gradle_version &
+  info_spinner "Installing gradle, candidate: $gradle_version" "Gradle candidate $gradle_version installed" $!
+  add_metadata "gradle" "$gradle_version"
+fi
