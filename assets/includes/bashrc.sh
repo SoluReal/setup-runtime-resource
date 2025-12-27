@@ -93,10 +93,10 @@ EOF
       mkdir -p "$RUNTIME_DIR/nvm/versions/"
       cp -a "$CACHE_DIRECTORY/nvm/versions/" "$RUNTIME_DIR/nvm/"
     fi
-    if [[ "$SDKMAN_ENABLED" = "true" && -d "$CACHE_DIRECTORY/sdkman/candidates" ]]; then
+    if [[ "$SDKMAN_ENABLED" = "true" && -f "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" ]]; then
       info "Restoring sdkman candidates from cache..."
       mkdir -p "$RUNTIME_DIR/sdkman/candidates/"
-      cp -a "$CACHE_DIRECTORY/sdkman/candidates/" "$RUNTIME_DIR/sdkman/"
+      tar -I lz4 -xf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman" candidates
     fi
     if [[ -d "$RUNTIME_DIR/docker" ]]; then
       info "Restoring docker images"
@@ -107,35 +107,38 @@ fi
 
 function prepare_cache() {
   if [[ "$ENABLE_CACHE" = "true" ]]; then
-    if [[ "$PYENV_ENABLED" = "true" && -d "$RUNTIME_DIR/pyenv/versions" ]]; then
-      info "Saving pyenv versions to cache..."
-      mkdir -p "$CACHE_DIRECTORY/pyenv"
-      cp -a "$RUNTIME_DIR/pyenv/versions/" "$CACHE_DIRECTORY/pyenv/"
-    fi
-    if [[ "$NVM_ENABLED" = "true" && -d "$RUNTIME_DIR/nvm/versions" ]]; then
-      info "Saving nvm versions to cache..."
-      mkdir -p "$CACHE_DIRECTORY/nvm"
-      cp -a "$RUNTIME_DIR/nvm/versions/" "$CACHE_DIRECTORY/nvm/"
-    fi
-    if [[ "$SDKMAN_ENABLED" = "true" && -d "$RUNTIME_DIR/sdkman/candidates" ]]; then
-      info "Saving sdkman candidates to cache..."
-      mkdir -p "$CACHE_DIRECTORY/sdkman"
-      cp -a "$RUNTIME_DIR/sdkman/candidates/" "$CACHE_DIRECTORY/sdkman/"
-    fi
+    if [[ ! -f /tmp/runtime-cache-prepared ]]; then
+      touch /tmp/runtime-cache-prepared
+      if [[ "$PYENV_ENABLED" = "true" && -d "$RUNTIME_DIR/pyenv/versions" ]]; then
+        info "Saving pyenv versions to cache..."
+        mkdir -p "$CACHE_DIRECTORY/pyenv"
+        cp -a "$RUNTIME_DIR/pyenv/versions/" "$CACHE_DIRECTORY/pyenv/"
+      fi
+      if [[ "$NVM_ENABLED" = "true" && -d "$RUNTIME_DIR/nvm/versions" ]]; then
+        info "Saving nvm versions to cache..."
+        mkdir -p "$CACHE_DIRECTORY/nvm"
+        cp -a "$RUNTIME_DIR/nvm/versions/" "$CACHE_DIRECTORY/nvm/"
+      fi
+      if [[ "$SDKMAN_ENABLED" = "true" && -d "$RUNTIME_DIR/sdkman/candidates" ]]; then
+        info "Saving sdkman candidates to cache..."
+        mkdir -p "$CACHE_DIRECTORY/sdkman"
+        tar -I lz4 -cf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman/" candidates
+      fi
 
-    if [[ ! -d "$CACHE_DIRECTORY" ]]; then
-      return 0
-    fi
+      if [[ ! -d "$CACHE_DIRECTORY" ]]; then
+        return 0
+      fi
 
-    size_bytes=$(du -sb "$CACHE_DIRECTORY" | awk '{print $1}')
+      size_bytes=$(du -sb "$CACHE_DIRECTORY" | awk '{print $1}')
 
-    if [[ -n "$MAX_CACHE_SIZE_MB" ]]; then
-      local max_size=$(($MAX_CACHE_SIZE_MB * 1024 * 1024))
+      if [[ -n "$MAX_CACHE_SIZE_MB" ]]; then
+        local max_size=$(($MAX_CACHE_SIZE_MB * 1024 * 1024))
 
-      if (( size_bytes > max_size )); then
-        info "Cache size is $(du -sh "$CACHE_DIRECTORY" 2>/dev/null) which is above $MAX_CACHE_SIZE_MB MB. Cleaning up $CACHE_DIRECTORY..."
-        rm -rf "$CACHE_DIRECTORY/*" || true
-        info "Cleanup completed."
+        if (( size_bytes > max_size )); then
+          info "Cache size is $(du -sh "$CACHE_DIRECTORY" 2>/dev/null) which is above $MAX_CACHE_SIZE_MB MB. Cleaning up $CACHE_DIRECTORY..."
+          rm -rf "$CACHE_DIRECTORY/*" || true
+          info "Cleanup completed."
+        fi
       fi
     fi
   else

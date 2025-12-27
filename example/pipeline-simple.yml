@@ -23,7 +23,7 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      pyenv:
+      sdkman:
         enabled: true
       verbose: true
 
@@ -51,7 +51,6 @@ jobs:
             args:
               - -ec
               - |
-                echo "3.12.2" > .python-version
-                pyenv install --skip-existing
-                pyenv local
-                python --version
+                echo "java=21.0.4-tem" > .sdkmanrc
+          
+                sdk env install
