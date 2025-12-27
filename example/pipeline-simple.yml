@@ -1,9 +1,11 @@
 resource_types:
   - name: setup-runtime-resource
     type: registry-image
+    # Running with privileged is not required and is not recommended for production use.
+    privileged: true
     source:
       repository: registry:5000/setup-runtime-resource
-      tag: latest
+      tag: ((setup-runtime-resource-tag))
       insecure: true
   - name: mock-via-params
     type: mock

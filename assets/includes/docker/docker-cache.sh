@@ -55,6 +55,7 @@ function docker_save_cache() {
 
   cores=$(nproc --all)
   export -f save_image
+  export -f info
   printf '%s\n' $images | xargs -P "$cores" -I{} bash -c 'save_image "$1" "$2"' _ {} "$tmp_cache"
 
   rm -rf "$tmp_cache"

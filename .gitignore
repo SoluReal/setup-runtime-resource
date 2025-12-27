@@ -3,3 +3,5 @@ secrets
 .DS_Store
 .idea
 .envrc
+keys/web/*
+keys/worker/*

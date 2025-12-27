@@ -1,4 +1,12 @@
 services:
+  apt-cacher:
+    container_name: apt-cacher
+    build:
+      context: util/apt-cacher
+    ports:
+      - "3142:3142"
+    restart: unless-stopped
+
   # Our registry which we push test resources to.
   registry:
     image: registry:3
@@ -6,53 +14,71 @@ services:
       - "5000:5000"
     restart: unless-stopped
 
-  concourse-db:
+  db:
     image: postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: concourse
-      POSTGRES_PASSWORD: concourse_pass
       POSTGRES_USER: concourse_user
-      PGDATA: /database
-      POSTGRES_HOST_AUTH_METHOD: trust #for healthcheck
+      POSTGRES_PASSWORD: concourse_pass
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U concourse_user -d concourse"]
       interval: 3s
       timeout: 3s
       retries: 5
 
-  concourse:
+  web:
     image: concourse/concourse
-    command: quickstart
-    privileged: true
-    cgroup: host
-    links:
-      - registry
-    depends_on:
-      concourse-db:
-        condition: service_healthy
-    ports: ["8080:8080"]
+    command: web
+    links: [ db ]
+    depends_on: [ db ]
+    ports: [ "8080:8080" ]
+    volumes: [ "./keys/web:/concourse-keys" ]
+    restart: unless-stopped
     environment:
-      CONCOURSE_POSTGRES_HOST: concourse-db
+      CONCOURSE_EXTERNAL_URL: http://localhost:8080
+      CONCOURSE_POSTGRES_HOST: db
       CONCOURSE_POSTGRES_USER: concourse_user
       CONCOURSE_POSTGRES_PASSWORD: concourse_pass
       CONCOURSE_POSTGRES_DATABASE: concourse
-      CONCOURSE_EXTERNAL_URL: http://localhost:8080
       CONCOURSE_ADD_LOCAL_USER: test:test
       CONCOURSE_MAIN_TEAM_LOCAL_USER: test
-      # instead of relying on the default "detect"
-      CONCOURSE_WORKER_BAGGAGECLAIM_DRIVER: overlay
-      CONCOURSE_CLIENT_SECRET: Y29uY291cnNlLXdlYgo=
-      CONCOURSE_TSA_CLIENT_SECRET: Y29uY291cnNlLXdvcmtlcgo=
-      CONCOURSE_CLUSTER_NAME: tutorial
-      CONCOURSE_WORKER_CONTAINERD_DNS_SERVER: "142.251.36.4" # Internal DNS server inside our docker network
-      CONCOURSE_WORKER_RUNTIME: "containerd"
+
       CONCOURSE_ENABLE_PIPELINE_INSTANCES: "true"
       CONCOURSE_ENABLE_ACROSS_STEP: "true"
       CONCOURSE_ENABLE_RESOURCE_CAUSALITY: "true"
+    extra_hosts:
+      - "apt-cacher:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+
+  worker:
+    image: concourse/concourse
+    restart: unless-stopped
+    command: worker
+    privileged: true
+    depends_on: [ web ]
+    volumes: [ "./keys/worker:/concourse-keys" ]
+    links: [ web ]
+    stop_signal: SIGUSR2
+    environment:
+      CONCOURSE_TSA_HOST: web:2222
+      CONCOURSE_RUNTIME: "containerd"
       # allow to reach the registry container
-      CONCOURSE_WORKER_CONTAINERD_ALLOW_HOST_ACCESS: "true"
-      CONCOURSE_WORKER_CONTAINERD_DNS_PROXY_ENABLE: "true"
-      # Running with fuse-only mode should work when using buildah / mmdebstrap.
-      # However, when testing with docker-in-docker, this setting can't be set to fuse-only.
-      # https://github.com/concourse/concourse/pull/9017
-      # CONCOURSE_WORKER_CONTAINERD_PRIVILEGED_MODE: "fuse-only"
+      CONCOURSE_CONTAINERD_ALLOW_HOST_ACCESS: "true"
+      CONCOURSE_CONTAINERD_DNS_PROXY_ENABLE: "true"
+    extra_hosts:
+      - "apt-cacher:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"

@@ -40,6 +40,7 @@ export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payloa
 
 export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload")
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
+export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
 
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
@@ -75,9 +76,10 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
-include=""
-if [ -n "$dependencies" ]; then
-  include="--include=$dependencies"
+args=()
+
+if [[ -n "${dependencies:-}" ]]; then
+  args+=( "--include=$dependencies" )
 fi
 
 export OUTPUT_FILE=/tmp/info_log
@@ -85,9 +87,14 @@ touch $OUTPUT_FILE
 tail -f "$OUTPUT_FILE" &
 INFO_LOGGER_PID=$!
 
-log_on_error mmdebstrap --variant=essential \
-  --mode=fakechroot \
-  "$include" \
+if [[ -n "${debian_proxy:-}" ]]; then
+  info "Using debian proxy: $debian_proxy"
+  args+=( "--aptopt=Acquire::http { Proxy \"$debian_proxy\"; }" )
+fi
+
+args+=(
+  --variant=essential \
+  --mode=auto \
   --aptopt='Acquire::Languages "none"' \
   --aptopt='Apt::Install-Recommends "false"' \
   --aptopt='APT::Get::Install-Suggests "false"' \
@@ -101,6 +108,9 @@ log_on_error mmdebstrap --variant=essential \
   --skip=output/dev \
   --hook-dir="$ROOT_DIR/hooks" \
   "$DEBIAN_VERSION" "$WORK_ROOTFS"
+)
+
+log_on_error mmdebstrap "${args[@]}"
 
 kill $INFO_LOGGER_PID
 
@@ -130,7 +140,7 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
   # Copy docker includes into the rootfs.
   cp -r "$ROOT_DIR/includes/docker" "$dest/rootfs$RUNTIME_DIR"
 
-  add_trap "teardown_docker" EXIT
+  add_trap teardown_docker EXIT
 fi
 
 add_trap prepare_cache EXIT
@@ -147,7 +157,7 @@ for f in /tmp/traps_*; do
   fi
 done
 
-cat $ROOT_DIR/includes/bashrc.sh >> "$dest/rootfs/root/.bashrc"
+cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs/root/.bashrc"
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"
 

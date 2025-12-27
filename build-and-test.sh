@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-BUILD="${BUILD:-false}"
+RECREATE_PIPELINE="${RECREATE_PIPELINE:-false}"
 
 echo "Running setup-runtime tests..."
 
@@ -10,30 +10,38 @@ export PIPELINE_FILE="${PIPELINE_FILE:-pipeline.yml}"
 
 export PIPELINE_NAME="setup-runtime-test"
 
-if [ "$BUILD" = "true" ]; then
-  docker-compose -p concource-resource -f docker-compose.yml down
-  docker-compose -p concource-resource -f docker-compose.yml up -d
+docker-compose -p concource-resource -f docker-compose.yml up -d
 
-  docker buildx build \
-    -t localhost:5000/setup-runtime-resource:latest \
-    --progress=plain \
-    --push .
+HASH="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8; echo)"
 
-  until fly -t test login -c http://localhost:8080 -u test -p test
-  do
-    sleep 5
-  done
+docker buildx build \
+  -t localhost:5000/setup-runtime-resource:latest \
+  -t localhost:5000/setup-runtime-resource:$HASH \
+  --progress=plain \
+  --push .
 
+until fly -t test login -c http://localhost:8080 -u test -p test
+do
+  sleep 5
+done
+
+if [[ $RECREATE_PIPELINE = "true" ]]; then
   fly -t test pipelines --json \
     | jq -r ".[] | select(.name==\"$PIPELINE_NAME\") | .name" \
     | xargs -n1 -I{} fly -t test destroy-pipeline -p {} -n
 fi
 
-fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n\
+fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n \
   --yaml-var "TASK_CONFIG=$(cat example/task.yml)" \
-  --yaml-var "SETUP_RUNTIME_SOURCE=$(cat example/runtime-source.yml)"
+  --yaml-var "SETUP_RUNTIME_SOURCE=$(cat example/runtime-source.yml)
+debian_proxy: http://apt-cacher:3142
+" \
+  --var "setup-runtime-resource-tag=$HASH"
 
 fly -t test unpause-pipeline -p $PIPELINE_NAME
+
+# Clear the cache so we can run 2 jobs, one to verify the cache restore.
+fly -t test clear-task-cache -j=setup-runtime-test/test-setup-runtime --step=test-image -c cache -n
 
 fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
 

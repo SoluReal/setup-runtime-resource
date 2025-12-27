@@ -16,7 +16,6 @@ function error() {
   printf "$Red%s$Color_Off\n" "$1" >&2
 }
 
-
 CACHE_DIR="${CACHE_DIR:-cache}"
 export ENABLE_CACHE="${ENABLE_CACHE:-true}"
 export CACHE_DIRECTORY="$(pwd)/$CACHE_DIR"
