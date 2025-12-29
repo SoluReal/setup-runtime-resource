@@ -99,12 +99,9 @@ args+=(
   --aptopt='Apt::Install-Recommends "false"' \
   --aptopt='APT::Get::Install-Suggests "false"' \
   --dpkgopt='path-exclude=/usr/share/man/*' \
-  --dpkgopt='path-include=/usr/share/man/man[1-9]/*' \
   --dpkgopt='path-exclude=/usr/share/locale/*' \
-  --dpkgopt='path-include=/usr/share/locale/locale.alias' \
   --dpkgopt='path-exclude=/usr/share/doc/*' \
-  --dpkgopt='path-include=/usr/share/doc/*/copyright' \
-  --dpkgopt='path-include=/usr/share/doc/*/changelog.Debian.*' \
+  --dpkgopt='path-exclude=/usr/share/info/*' \
   --skip=output/dev \
   --hook-dir="$ROOT_DIR/hooks" \
   "$DEBIAN_VERSION" "$WORK_ROOTFS"
