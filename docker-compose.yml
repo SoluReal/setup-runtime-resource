@@ -52,8 +52,6 @@ services:
       CONCOURSE_ENABLE_PIPELINE_INSTANCES: "true"
       CONCOURSE_ENABLE_ACROSS_STEP: "true"
       CONCOURSE_ENABLE_RESOURCE_CAUSALITY: "true"
-    extra_hosts:
-      - "apt-cacher:host-gateway"
     logging:
       driver: "json-file"
       options:
@@ -65,7 +63,7 @@ services:
     restart: unless-stopped
     command: worker
     privileged: true
-    depends_on: [ web ]
+    depends_on: [ web, git-server, apt-cacher ]
     volumes: [ "./keys/worker:/concourse-keys" ]
     links: [ web ]
     stop_signal: SIGUSR2
@@ -77,8 +75,20 @@ services:
       CONCOURSE_CONTAINERD_DNS_PROXY_ENABLE: "true"
     extra_hosts:
       - "apt-cacher:host-gateway"
+      - "git-server:host-gateway"
     logging:
       driver: "json-file"
       options:
         max-file: "5"
         max-size: "10m"
+
+  # Small git server to serve our test resources from
+  git-server:
+    build:
+      context: util/git-server
+    container_name: git-server
+    volumes:
+      - ./example:/git/repo:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

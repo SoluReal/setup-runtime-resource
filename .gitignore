@@ -5,3 +5,8 @@ secrets
 .envrc
 keys/web/*
 keys/worker/*
+
+# Gradle
+example/gradle/build
+example/gradle/.gradle
+example/gradle/!gradle/wrapper/gradle-wrapper.jar

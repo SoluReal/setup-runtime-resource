@@ -29,6 +29,7 @@ resources:
 
 jobs:
   - name: test-setup-runtime
+    serial: true
     plan:
       - in_parallel:
           - get: setup-runtime

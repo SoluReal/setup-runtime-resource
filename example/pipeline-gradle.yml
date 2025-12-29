@@ -1,0 +1,62 @@
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  # Running with privileged is not required and is not recommended for production use.
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+resources:
+- name: setup-runtime
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    sdkman:
+      enabled: true
+    verbose: true
+- name: example
+  type: git
+  source:
+    uri: http://git-server:3000/example.git
+
+jobs:
+- name: test-setup-runtime
+  serial: true
+  plan:
+  - in_parallel:
+    - get: setup-runtime
+    - get: example
+  - task: test-image
+    image: setup-runtime
+    privileged: true
+    config:
+      platform: linux
+      inputs:
+        - name: example
+      caches:
+        - path: cache
+      params:
+        DEBUG: true
+        GRADLE_PROP_org_gradle_parallel: false
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            assert_contains() {
+              local needle="$1"
+              local input
+            
+              input="$(cat)"
+            
+              if [[ "$input" != *"$needle"* ]]; then
+                echo "Expected '$needle' to be in '$input'"
+                exit 1
+              fi
+            }
+            
+            pushd example/gradle
+            sdk env install
+            ./gradlew clean build

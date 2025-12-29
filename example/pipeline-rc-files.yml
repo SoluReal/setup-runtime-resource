@@ -25,6 +25,7 @@ resources:
 
 jobs:
 - name: test-setup-runtime
+  serial: true
   plan:
   - get: setup-runtime
 
@@ -36,6 +37,8 @@ jobs:
 
       caches:
         - path: cache
+      params:
+        GRADLE_PROP_org_gradle_parallel: false
       run:
         path: bash
         args:

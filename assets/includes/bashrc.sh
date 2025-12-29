@@ -68,35 +68,54 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     mkdir -p $CACHE_DIRECTORY/pnpm
     echo "export PNPM_STORE_PATH=$CACHE_DIRECTORY/pnpm" >> /root/.bashrc
 
-    mkdir -p $CACHE_DIRECTORY/gradle
-    echo "export GRADLE_USER_HOME=$CACHE_DIRECTORY/gradle" >> /root/.bashrc
-
     # Persist gradle.properties at build time
     mkdir -p /root/.gradle
     cat <<EOF > /root/.gradle/gradle.properties
 org.gradle.caching=true
 org.gradle.parallel=true
+org.gradle.configuration-cache=true
+EOF
+    # Overwrite gradle.properties with GRADLE_PROP_ environment variables
+    while IFS='=' read -r name value ; do
+      if [[ $name == GRADLE_PROP_* ]]; then
+        prop_name=$(echo "${name#GRADLE_PROP_}" | tr '_' '.')
+        # Remove existing property if it exists
+        sed -i "/^${prop_name}=/d" /root/.gradle/gradle.properties
+        echo "${prop_name}=${value}" >> /root/.gradle/gradle.properties
+      fi
+    done < <(env)
+
+    mkdir -p /root/.m2
+    cat <<EOF > /root/.m2/settings.xml
+<settings>
+  <localRepository>/root/.m2/repository</localRepository>
+</settings>
 EOF
 
-    mkdir -p "$CACHE_DIRECTORY/maven"
-    mkdir -p /root/.m2
-    touch /root/.m2/settings.xml
-    echo "<settings><localRepository>$CACHE_DIRECTORY/maven</localRepository></settings>" > /root/.m2/settings.xml
-
-    if [[ "$PYENV_ENABLED" = "true" && -d "$CACHE_DIRECTORY/pyenv/versions" ]]; then
+    if [[ "$PYENV_ENABLED" = "true" && -f "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" ]]; then
       info "Restoring pyenv versions from cache..."
-      mkdir -p "$RUNTIME_DIR/pyenv/versions/"
-      cp -a "$CACHE_DIRECTORY/pyenv/versions/" "$RUNTIME_DIR/pyenv/"
+      mkdir -p "$RUNTIME_DIR/pyenv"
+      tar -I lz4 -xf "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" -C "$RUNTIME_DIR/pyenv"
     fi
-    if [[ "$NVM_ENABLED" = "true" && -d "$CACHE_DIRECTORY/nvm/versions" ]]; then
+    if [[ "$NVM_ENABLED" = "true" && -f "$CACHE_DIRECTORY/nvm/archive.tar.lz4" ]]; then
       info "Restoring nvm versions from cache..."
-      mkdir -p "$RUNTIME_DIR/nvm/versions/"
-      cp -a "$CACHE_DIRECTORY/nvm/versions/" "$RUNTIME_DIR/nvm/"
+      mkdir -p "$RUNTIME_DIR/nvm"
+      tar -I lz4 -xf "$CACHE_DIRECTORY/nvm/archive.tar.lz4" -C "$RUNTIME_DIR/nvm"
     fi
     if [[ "$SDKMAN_ENABLED" = "true" && -f "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" ]]; then
       info "Restoring sdkman candidates from cache..."
       mkdir -p "$RUNTIME_DIR/sdkman/candidates/"
       tar -I lz4 -xf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman" candidates
+    fi
+    if [[ -f "$CACHE_DIRECTORY/gradle/archive.tar.lz4" ]]; then
+      info "Restoring gradle cache..."
+      mkdir -p /root/.gradle
+      tar -I lz4 -xf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" -C /root/.gradle
+    fi
+    if [[ -f "$CACHE_DIRECTORY/maven/archive.tar.lz4" ]]; then
+      info "Restoring maven cache..."
+      mkdir -p /root/.m2
+      tar -I lz4 -xf "$CACHE_DIRECTORY/maven/archive.tar.lz4" -C /root/.m2
     fi
     if [[ -d "$RUNTIME_DIR/docker" ]]; then
       info "Restoring docker images"
@@ -112,17 +131,37 @@ function prepare_cache() {
       if [[ "$PYENV_ENABLED" = "true" && -d "$RUNTIME_DIR/pyenv/versions" ]]; then
         info "Saving pyenv versions to cache..."
         mkdir -p "$CACHE_DIRECTORY/pyenv"
-        cp -a "$RUNTIME_DIR/pyenv/versions/" "$CACHE_DIRECTORY/pyenv/"
+        tar -I lz4 -cf "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" -C "$RUNTIME_DIR/pyenv" versions
       fi
       if [[ "$NVM_ENABLED" = "true" && -d "$RUNTIME_DIR/nvm/versions" ]]; then
         info "Saving nvm versions to cache..."
         mkdir -p "$CACHE_DIRECTORY/nvm"
-        cp -a "$RUNTIME_DIR/nvm/versions/" "$CACHE_DIRECTORY/nvm/"
+        tar -I lz4 -cf "$CACHE_DIRECTORY/nvm/archive.tar.lz4" -C "$RUNTIME_DIR/nvm" versions
       fi
       if [[ "$SDKMAN_ENABLED" = "true" && -d "$RUNTIME_DIR/sdkman/candidates" ]]; then
         info "Saving sdkman candidates to cache..."
         mkdir -p "$CACHE_DIRECTORY/sdkman"
         tar -I lz4 -cf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman/" candidates
+      fi
+      if [[ -d "/root/.gradle" ]]; then
+        info "Saving gradle cache..."
+        mkdir -p "$CACHE_DIRECTORY/gradle"
+        # Only cache what is needed
+        # caches/modules-2
+        # wrapper/dists
+        tar -I lz4 -cf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" \
+          -C /root/.gradle \
+          --transform='s,^caches/modules-2,caches/modules-2,' \
+          --transform='s,^caches/build-cache-1,caches/build-cache-1,' \
+          --transform='s,^caches/jars-9,caches/jars-9,' \
+          --transform='s,^wrapper/dists,wrapper/dists,' \
+          --transform='s,^configuration-cache,configuration-cache,' \
+          caches/jars-9 caches/modules-2 wrapper/dists caches/build-cache-1 configuration-cache 2>/dev/null || true
+      fi
+      if [[ -d "/root/.m2/repository" ]]; then
+        info "Saving maven cache..."
+        mkdir -p "$CACHE_DIRECTORY/maven"
+        tar -I lz4 -cf "$CACHE_DIRECTORY/maven/archive.tar.lz4" -C /root/.m2 repository
       fi
 
       if [[ ! -d "$CACHE_DIRECTORY" ]]; then
@@ -139,6 +178,11 @@ function prepare_cache() {
           rm -rf "$CACHE_DIRECTORY/*" || true
           info "Cleanup completed."
         fi
+      fi
+
+      if [[ "$DEBUG" = "true" ]]; then
+        info "Cache size in $CACHE_DIR:"
+        info "$(du -sh "$CACHE_DIRECTORY" 2>/dev/null)" || true
       fi
     fi
   else

@@ -240,6 +240,35 @@ jobs:
               pytest
 ```
 
+## Gradle
+
+Gradle can be either installed at resource gathering time or at runtime using the gradlew wrapper.
+
+The gradle.properties file is generated automatically to configure caching variables.
+
+To override the gradle.properties use:
+
+```yaml
+jobs:
+  - name: build
+    plan:
+      - get: setup-runtime
+      - task: build-project
+        image: setup-runtime
+        params:
+          # This will replace the default value
+          GRADLE_PROP_org_gradle_parallel: false
+          GRADLE_PROP_org.gradle.jvmargs: -Xmx4096
+        config:
+          platform: linux
+          run:
+            path: bash
+            args:
+              - -ec
+              - |
+                echo "Hello from setup-runtime-resource!"
+```
+
 ## Caching
 
 This resource tries to be a batteries included resource for building and testing your projects

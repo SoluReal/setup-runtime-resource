@@ -10,6 +10,7 @@ export PIPELINE_FILE="${PIPELINE_FILE:-pipeline.yml}"
 
 export PIPELINE_NAME="setup-runtime-test"
 
+docker-compose -p concource-resource -f docker-compose.yml build git-server
 docker-compose -p concource-resource -f docker-compose.yml up -d
 
 HASH="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8; echo)"
@@ -42,6 +43,8 @@ fly -t test unpause-pipeline -p $PIPELINE_NAME
 
 # Clear the cache so we can run 2 jobs, one to verify the cache restore.
 fly -t test clear-task-cache -j=setup-runtime-test/test-setup-runtime --step=test-image -c cache -n
+# When a new git-server is created all previous versions need to be removed.
+echo y | fly -t test clear-versions --resource=setup-runtime-test/example
 
 fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
 

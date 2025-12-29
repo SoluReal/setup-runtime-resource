@@ -18,6 +18,7 @@ resources:
 
 jobs:
 - name: test-setup-runtime
+  serial: true
   plan:
   - get: setup-runtime
 

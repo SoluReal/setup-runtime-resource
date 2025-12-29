@@ -144,7 +144,6 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
 fi
 
 add_trap prepare_cache EXIT
-add_trap 'if [[ "$DEBUG" = "true" ]]; then info "Cache size in $CACHE_DIR:"; info "$(du -sh "$CACHE_DIR" 2>/dev/null)" || true; fi' EXIT
 
 for f in /tmp/traps_*; do
   if [[ -e "$f" ]]; then
