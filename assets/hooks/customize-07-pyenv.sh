@@ -13,8 +13,6 @@ if [[ "$pyenv_enabled" = "true" ]]; then
     | tar -xz --strip-components=1 -C "$PYENV_ROOT" &
   info_spinner "Installing pyenv" "pyenv installed" $!
 
-  echo "unset ENV" >> $chroot_dir/root/.bashrc
-  echo "unset BASH_ENV" >> $chroot_dir/root/.bashrc
   echo "export PYENV_ROOT=$PYENV_RUNTIME_DIR" >> $chroot_dir/root/.bashrc
   echo "[[ -d \$PYENV_ROOT/bin ]] && export PATH=\"\$PYENV_ROOT/bin:\$PATH\"" >> $chroot_dir/root/.bashrc
 

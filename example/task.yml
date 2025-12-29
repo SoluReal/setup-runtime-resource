@@ -24,6 +24,18 @@ run:
           exit 1
         fi
       }
+
+      assert_not_contains() {
+        local needle="$1"
+        local input
+
+        input="$(cat)"
+
+        if [[ "$input" == *"$needle"* ]]; then
+          echo "Expected '$needle' to not be in '$input'"
+          exit 1
+        fi
+      }
       
       ls -lah cache
       
@@ -87,3 +99,6 @@ run:
       
       # Check gradle.properties persistence
       cat /root/.gradle/gradle.properties | assert_contains "org.gradle.caching=true"
+
+      # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
+      bash -c "echo hi" | assert_not_contains "Saving"

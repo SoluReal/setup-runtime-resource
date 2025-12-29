@@ -16,6 +16,9 @@ function error() {
   printf "$Red%s$Color_Off\n" "$1" >&2
 }
 
+unset ENV
+unset BASH_ENV
+
 CACHE_DIR="${CACHE_DIR:-cache}"
 export ENABLE_CACHE="${ENABLE_CACHE:-true}"
 export CACHE_DIRECTORY="$(pwd)/$CACHE_DIR"
@@ -73,7 +76,6 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     cat <<EOF > /root/.gradle/gradle.properties
 org.gradle.caching=true
 org.gradle.parallel=true
-org.gradle.configuration-cache=true
 EOF
     # Overwrite gradle.properties with GRADLE_PROP_ environment variables
     while IFS='=' read -r name value ; do
@@ -92,27 +94,35 @@ EOF
 </settings>
 EOF
 
-    if [[ "$PYENV_ENABLED" = "true" && -f "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" ]]; then
+    # It is possible that cache exists but that e.g. sdkman is no longer requested in the setup-runtime source.
+    # Then the cache restore will break if we don't check for the existence of lz4.
+    if command -v lz4 >/dev/null 2>&1; then
+      LZ4_INSTALLED=true
+    else
+      LZ4_INSTALLED=false
+    fi
+
+    if [[ "$PYENV_ENABLED" = "true" && -f "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
       info "Restoring pyenv versions from cache..."
       mkdir -p "$RUNTIME_DIR/pyenv"
       tar -I lz4 -xf "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" -C "$RUNTIME_DIR/pyenv"
     fi
-    if [[ "$NVM_ENABLED" = "true" && -f "$CACHE_DIRECTORY/nvm/archive.tar.lz4" ]]; then
+    if [[ "$NVM_ENABLED" = "true" && -f "$CACHE_DIRECTORY/nvm/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
       info "Restoring nvm versions from cache..."
       mkdir -p "$RUNTIME_DIR/nvm"
       tar -I lz4 -xf "$CACHE_DIRECTORY/nvm/archive.tar.lz4" -C "$RUNTIME_DIR/nvm"
     fi
-    if [[ "$SDKMAN_ENABLED" = "true" && -f "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" ]]; then
+    if [[ "$SDKMAN_ENABLED" = "true" && -f "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
       info "Restoring sdkman candidates from cache..."
       mkdir -p "$RUNTIME_DIR/sdkman/candidates/"
       tar -I lz4 -xf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman" candidates
     fi
-    if [[ -f "$CACHE_DIRECTORY/gradle/archive.tar.lz4" ]]; then
+    if [[ -f "$CACHE_DIRECTORY/gradle/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
       info "Restoring gradle cache..."
       mkdir -p /root/.gradle
       tar -I lz4 -xf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" -C /root/.gradle
     fi
-    if [[ -f "$CACHE_DIRECTORY/maven/archive.tar.lz4" ]]; then
+    if [[ -f "$CACHE_DIRECTORY/maven/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
       info "Restoring maven cache..."
       mkdir -p /root/.m2
       tar -I lz4 -xf "$CACHE_DIRECTORY/maven/archive.tar.lz4" -C /root/.m2

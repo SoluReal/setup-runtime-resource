@@ -23,8 +23,6 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      sdkman:
-        enabled: true
       verbose: true
 
 jobs:
@@ -52,6 +50,16 @@ jobs:
             args:
               - -ec
               - |
-                echo "java=21.0.4-tem" > .sdkmanrc
-          
-                sdk env install
+                assert_not_contains() {
+                  local needle="$1"
+                  local input
+                  
+                  input="$(cat)"
+                  
+                  if [[ "$input" == *"$needle"* ]]; then
+                  echo "Expected '$needle' to not be in '$input'"
+                  exit 1
+                  fi
+                }
+                # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
+                bash -c "echo hi" | assert_not_contains "Saving"
