@@ -142,12 +142,19 @@ fi
 
 add_trap prepare_cache EXIT
 
+# Add all our traps to one function since bash can only have one trap directive.
+# Since multiple sub-bash processes can be started we have to make sure that only the main process handles the trap.
+# This is done by saving the pid of the main bash process and only run traps on main bash process.
 for f in /tmp/traps_*; do
   if [[ -e "$f" ]]; then
     sig="${f#/tmp/traps_}"
     cmds=$(paste -sd ";" "$f")
     echo "function trap_$sig() {
-  $cmds
+    current_pid=\$\$
+    main_pid=\$(cat /tmp/main_pid)
+  if [[ \"\$current_pid\" = \"\$main_pid\" ]]; then
+    $cmds
+  fi
 }" >> "$dest/rootfs/root/.bashrc"
     echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs/root/.bashrc"
   fi

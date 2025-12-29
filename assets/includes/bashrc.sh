@@ -16,6 +16,11 @@ function error() {
   printf "$Red%s$Color_Off\n" "$1" >&2
 }
 
+# Store the main pid so we can make sure that we only execute the traps on the main bash process.
+if [ -n "$BASH_ENV" ]; then
+  echo $$ > /tmp/main_pid
+fi
+
 unset ENV
 unset BASH_ENV
 

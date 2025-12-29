@@ -23,6 +23,8 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
+      nvm:
+        enabled: true
       verbose: true
 
 jobs:
