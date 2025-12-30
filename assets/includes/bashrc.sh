@@ -17,7 +17,7 @@ function error() {
 }
 
 # Store the main pid so we can make sure that we only execute the traps on the main bash process.
-if [ -n "$BASH_ENV" ]; then
+if [[ ! -f /tmp/main_pid ]]; then
   echo $$ > /tmp/main_pid
 fi
 
