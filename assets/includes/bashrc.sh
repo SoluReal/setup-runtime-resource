@@ -21,7 +21,6 @@ if [ -n "$BASH_ENV" ]; then
   echo $$ > /tmp/main_pid
 fi
 
-unset ENV
 unset BASH_ENV
 
 CACHE_DIR="${CACHE_DIR:-cache}"

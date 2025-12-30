@@ -122,7 +122,6 @@ if [[ -n "$hook" ]]; then
 fi
 
 set_env "BASH_ENV=/root/.bashrc"
-set_env "ENV=/root/.bashrc"
 
 # Define env vars to load the bash profile in non interactive shells
 # Add cache environment variables so caching is straightforward
