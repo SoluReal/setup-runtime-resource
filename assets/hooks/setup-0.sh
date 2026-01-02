@@ -17,3 +17,5 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
   mkdir --parents "$(dirname "$chroot_dir/$f")"
   cat "$f" >> "$chroot_dir/$f"
 fi
+
+mkdir -p "$chroot_dir/$RUNTIME_DIR/plugins"

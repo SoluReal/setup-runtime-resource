@@ -18,6 +18,10 @@ function sdkman_install() {
   echo "sdkman_auto_env=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_complete=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_checksum_enable=true" >> "$SDKMAN_DIR/etc/config"
+
+  cp "$ROOT_DIR/includes/sdkman.sh" "$chroot_dir/$RUNTIME_DIR/plugins/sdkman.sh"
+  cp "$ROOT_DIR/includes/gradle.sh" "$chroot_dir/$RUNTIME_DIR/plugins/gradle.sh"
+  cp "$ROOT_DIR/includes/maven.sh" "$chroot_dir/$RUNTIME_DIR/plugins/maven.sh"
 }
 
 if [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]]; then

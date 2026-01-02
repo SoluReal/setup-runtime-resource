@@ -4,10 +4,10 @@ export DOCKER_CACHE_DIR="$CACHE_DIRECTORY/docker"
 
 function docker_load_cache() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
-    if ls $DOCKER_CACHE_DIR/*.tar.lz4 >/dev/null 2>&1; then
+    if ls "$DOCKER_CACHE_DIR"/*.tar.lz4 >/dev/null 2>&1; then
       cores=$(nproc --all)
 
-      printf '%s\n' $DOCKER_CACHE_DIR/*.tar.lz4 | \
+      printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar.lz4 | \
         xargs -P "$cores" -I{} bash -c 'lz4 -dc "$1" | docker load' _ {}
     fi
   fi

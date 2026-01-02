@@ -132,14 +132,7 @@ jq -n "{
 
 log_on_error cat "$dest/metadata.json"
 
-if [[ "$testcontainers_enabled" = "true" ]]; then
-  # Copy docker includes into the rootfs.
-  cp -r "$ROOT_DIR/includes/docker" "$dest/rootfs$RUNTIME_DIR"
-
-  add_trap teardown_docker EXIT
-fi
-
-add_trap prepare_cache EXIT
+add_trap teardown_setup_runtime EXIT
 
 # Add all our traps to one function since bash can only have one trap directive.
 # Since multiple sub-bash processes can be started we have to make sure that only the main process handles the trap.

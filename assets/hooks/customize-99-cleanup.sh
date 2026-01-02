@@ -3,7 +3,7 @@
 set -eo pipefail
 
 chroot_dir="$1"
-source $ROOT_DIR/common.sh
+source "$ROOT_DIR/common.sh"
 export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
 
 log_info_hook "Cleaning up"
@@ -19,7 +19,7 @@ fi
 
 export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
 if [ -d "$NVM_DIR" ]; then
-    source $NVM_DIR/nvm.sh
+    source "$NVM_DIR/nvm.sh"
 
     nvm cache clear
 fi

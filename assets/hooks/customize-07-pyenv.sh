@@ -18,4 +18,6 @@ if [[ "$pyenv_enabled" = "true" ]]; then
 
   set_env "PYENV_ENABLED=true"
   add_metadata "pyenv" "true"
+
+  cp "$ROOT_DIR/includes/pyenv.sh" "$chroot_dir/$RUNTIME_DIR/plugins/pyenv.sh"
 fi
