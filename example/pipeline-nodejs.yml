@@ -16,8 +16,6 @@ resources:
       enabled: true
     nodejs:
       version: 22.12.0
-      yarn:
-        version: 4.5.3
       pnpm:
         version: 9.15.0
       bun:
@@ -56,15 +54,25 @@ jobs:
             echo "--- Testing npm ---"
             npm install
             npm test
-            
-            echo "--- Testing yarn ---"
-            yarn install
-            yarn test
+            rm -rf node_modules
             
             echo "--- Testing pnpm ---"
             pnpm install
             pnpm test
+            rm -rf node_modules
             
             echo "--- Testing bun ---"
             bun install
             bun test
+            rm -rf node_modules
+            
+            echo "--- Testing yarn ---"
+            rm package.json
+            mv package.json.yarn package.json
+            mv yarn.lock.bak yarn.lock
+
+            nvm install
+            yarn --version
+
+            yarn
+            yarn test

@@ -30,6 +30,7 @@ function register_initialize_callback() {
 CACHE_DIR="${CACHE_DIR:-cache}"
 export ENABLE_CACHE="${ENABLE_CACHE:-true}"
 export CACHE_DIRECTORY="$(pwd)/$CACHE_DIR"
+export CI=true
 
 for f in "$RUNTIME_DIR"/plugins/*.sh; do
   source "$f"
@@ -69,14 +70,17 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
   done
 
   if [[ "$ENABLE_CACHE" = "true" ]]; then
-    mkdir -p $CACHE_DIRECTORY/npm
-    echo "export NPM_CONFIG_CACHE=$CACHE_DIRECTORY/npm" >> /root/.bashrc
+    export COREPACK_HOME=$CACHE_DIRECTORY/corepack
+    mkdir -p "$COREPACK_HOME"
 
-    mkdir -p $CACHE_DIRECTORY/yarn
-    echo "export YARN_CACHE_FOLDER=$CACHE_DIRECTORY/yarn" >> /root/.bashrc
+    export NPM_CONFIG_CACHE=$CACHE_DIRECTORY/npm
+    mkdir -p "$NPM_CONFIG_CACHE"
 
-    mkdir -p $CACHE_DIRECTORY/pnpm
-    echo "export PNPM_STORE_PATH=$CACHE_DIRECTORY/pnpm" >> /root/.bashrc
+    export YARN_CACHE_FOLDER=$CACHE_DIRECTORY/yarn
+    mkdir -p "$YARN_CACHE_FOLDER"
+
+    export PNPM_STORE_PATH=$CACHE_DIRECTORY/pnpm
+    mkdir -p "$PNPM_STORE_PATH"
   fi
 fi
 
