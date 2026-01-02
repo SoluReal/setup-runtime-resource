@@ -1,0 +1,56 @@
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+resources:
+- name: setup-runtime
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    pyenv:
+      enabled: true
+    verbose: true
+- name: example
+  type: git
+  source:
+    uri: http://git-server:3000/example.git
+
+jobs:
+- name: test-setup-runtime
+  serial: true
+  plan:
+  - in_parallel:
+    - get: setup-runtime
+    - get: example
+  - task: test-image
+    image: setup-runtime
+    privileged: true
+    config:
+      platform: linux
+      inputs:
+        - name: example
+      caches:
+        - path: cache
+      params:
+        DEBUG: true
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            pushd example/python
+            
+            # Install the python version specified in .python-version
+            pyenv install --skip-existing
+            
+            # Set up virtualenv or just install dependencies
+            pip install -r requirements.txt
+            
+            # Run tests
+            export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+            pytest

@@ -1,0 +1,70 @@
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+resources:
+- name: setup-runtime
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    nvm:
+      enabled: true
+    nodejs:
+      version: 22.12.0
+      yarn:
+        version: 4.5.3
+      pnpm:
+        version: 9.15.0
+      bun:
+        version: 1.1.42
+    verbose: true
+- name: example
+  type: git
+  source:
+    uri: http://git-server:3000/example.git
+
+jobs:
+- name: test-setup-runtime
+  serial: true
+  plan:
+  - in_parallel:
+    - get: setup-runtime
+    - get: example
+  - task: test-image
+    image: setup-runtime
+    privileged: true
+    config:
+      platform: linux
+      inputs:
+        - name: example
+      caches:
+        - path: cache
+      params:
+        DEBUG: true
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            pushd example/nodejs
+            
+            echo "--- Testing npm ---"
+            npm install
+            npm test
+            
+            echo "--- Testing yarn ---"
+            yarn install
+            yarn test
+            
+            echo "--- Testing pnpm ---"
+            pnpm install
+            pnpm test
+            
+            echo "--- Testing bun ---"
+            bun install
+            bun test

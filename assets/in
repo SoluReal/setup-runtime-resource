@@ -32,6 +32,7 @@ export nvm_enabled=$(jq -r '(.source.nvm.enabled // "false")' <<< "$payload")
 export nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$payload")
 export yarn_version=$(jq -r '(.source.nodejs.yarn.version // "")' <<< "$payload")
 export pnpm_version=$(jq -r '(.source.nodejs.pnpm.version // "")' <<< "$payload")
+export bun_version=$(jq -r '(.source.nodejs.bun.version // "")' <<< "$payload")
 
 export maven_version=$(jq -r '(.source.maven.version // "")' <<< "$payload")
 export maven_wrapper=$(jq -r '(.source.maven.wrapper // "false")' <<< "$payload")

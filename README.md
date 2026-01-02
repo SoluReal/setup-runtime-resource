@@ -85,6 +85,7 @@ The resource `source` configuration supports the following options:
 | `nodejs.version`         | The Node.js version to install via NVM.                                                                                   | `""`    |
 | `nodejs.yarn.version`    | The Yarn version to install.                                                                                              | `""`    |
 | `nodejs.pnpm.version`    | The PNPM version to install.                                                                                              | `""`    |
+| `nodejs.bun.version`     | The bun version to install.                                                                                               | `""`    |
 | `testcontainers.enabled` | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
 | `telemetry.disable`      | Disable telemetry (if any).                                                                                               | `false` |
 

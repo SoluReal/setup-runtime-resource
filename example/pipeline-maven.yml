@@ -1,0 +1,49 @@
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  # Running with privileged is not required and is not recommended for production use.
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+resources:
+- name: setup-runtime
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    sdkman:
+      enabled: true
+    verbose: true
+- name: example
+  type: git
+  source:
+    uri: http://git-server:3000/example.git
+
+jobs:
+- name: test-setup-runtime
+  serial: true
+  plan:
+  - in_parallel:
+    - get: setup-runtime
+    - get: example
+  - task: test-image
+    image: setup-runtime
+    privileged: true
+    config:
+      platform: linux
+      inputs:
+        - name: example
+      caches:
+        - path: cache
+      params:
+        DEBUG: true
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            pushd example/maven
+            sdk env install
+            ./mvnw clean install

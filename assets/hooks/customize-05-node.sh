@@ -40,4 +40,14 @@ if [ -n "$nodejs_version" ]; then
     info_spinner "Installing pnpm $pnpm_version" "pnpm $pnpm_version installed" $!
     add_metadata "pnpm" "$pnpm_version"
   fi
+
+  if [ -n "$bun_version" ]; then
+    if [ "$bun_version" = "latest" ]; then
+        curl -fsSL https://bun.sh/install | BUN_INSTALL="$chroot_dir/usr/local" bash &
+    else
+        curl -fsSL https://bun.sh/install | BUN_INSTALL="$chroot_dir/usr/local" bash -s -- "bun-v${bun_version}" &
+    fi
+    info_spinner "Installing bun $bun_version" "bun $bun_version installed" $!
+    add_metadata "bun" "$bun_version"
+  fi
 fi
