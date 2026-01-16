@@ -32,9 +32,11 @@ export ENABLE_CACHE="${ENABLE_CACHE:-true}"
 export CACHE_DIRECTORY="$(pwd)/$CACHE_DIR"
 export CI=true
 
-for f in "$RUNTIME_DIR"/plugins/*.sh; do
-  source "$f"
-done
+if [[ -d "$RUNTIME_DIR/plugins" ]]; then
+  for f in "$RUNTIME_DIR"/plugins/*.sh; do
+    source "$f"
+  done
+fi
 
 # Store the main pid so we can make sure that we only execute the traps on the main bash process.
 if [[ ! -f /tmp/main_pid ]]; then
