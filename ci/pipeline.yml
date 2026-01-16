@@ -5,7 +5,6 @@ resources:
     source:
       uri: https://github.com/solureal/setup-runtime-resource.git
       branch: master
-      depth: 1
 
   - name: setup-runtime-resource-dev
     type: registry-image
