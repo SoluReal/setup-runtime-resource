@@ -74,6 +74,11 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     export COREPACK_HOME=$CACHE_DIRECTORY/corepack
     mkdir -p "$COREPACK_HOME"
+    # The corepack package managers that are instaled during resource get step should be available alongside any
+    # potential installed candidates from the task cache.
+    if [ -d $RUNTIME_DIR/corepack ]; then
+      cp -r $RUNTIME_DIR/corepack/* "$COREPACK_HOME"
+    fi
 
     export NPM_CONFIG_CACHE=$CACHE_DIRECTORY/npm
     mkdir -p "$NPM_CONFIG_CACHE"

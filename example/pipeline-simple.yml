@@ -23,8 +23,10 @@ resources:
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
-      nvm:
-        enabled: true
+      nodejs:
+        version: lts
+        yarn:
+          version: 4.10.2
       verbose: true
 
 jobs:
@@ -52,16 +54,6 @@ jobs:
             args:
               - -ec
               - |
-                assert_not_contains() {
-                  local needle="$1"
-                  local input
-                  
-                  input="$(cat)"
-                  
-                  if [[ "$input" == *"$needle"* ]]; then
-                  echo "Expected '$needle' to not be in '$input'"
-                  exit 1
-                  fi
-                }
-                # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
-                bash -c "echo hi" | assert_not_contains "Saving"
+                which yarn
+                
+                yarn --version

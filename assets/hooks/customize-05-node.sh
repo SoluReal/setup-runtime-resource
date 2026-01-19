@@ -3,7 +3,7 @@
 set -eo pipefail
 
 chroot_dir="$1"
-source $ROOT_DIR/common.sh
+source "$ROOT_DIR/common.sh"
 
 if [ -n "$nodejs_version" ]; then
   if [ "$nodejs_version" = "lts" ]; then
@@ -13,14 +13,15 @@ if [ -n "$nodejs_version" ]; then
   fi
 
   export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
-  source $NVM_DIR/nvm.sh
+  source "$NVM_DIR/nvm.sh"
 
-  nvm install $candidate
+  nvm install "$candidate"
   add_metadata "node" "$(nvm current)"
   npm uninstall -g yarn pnpm || true
 
   export COREPACK_HOME="$chroot_dir/$COREPACK_HOME_DIR"
   if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
+    # Starting with nodejs 25 corepack is no longer bundled with nodejs.
     npm install -g corepack &
     info_spinner "Installing corepack" "Corepack installed" $!
   fi

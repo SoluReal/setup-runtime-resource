@@ -1,5 +1,11 @@
 #!/bin/bash
 
+function enable_nvm() {
+  export NVM_DIR="$RUNTIME_DIR/nvm"
+  export COREPACK_HOME="$RUNTIME_DIR/corepack"
+  source "$NVM_DIR/nvm.sh"
+}
+
 function prepare_nvm_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_DIR/nvm/versions" ]]; then
     info "Saving nvm versions to cache..."
@@ -16,5 +22,6 @@ function restore_nvm_cache() {
   fi
 }
 
+register_initialize_callback enable_nvm
 register_initialize_callback restore_nvm_cache
 register_teardown_callback prepare_nvm_cache
