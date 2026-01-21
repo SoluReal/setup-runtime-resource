@@ -31,6 +31,7 @@ function save_image() {
     mv "$cached_file" "$DOCKER_CACHE_DIR"
   else
     info "Saving $image"
+    mkdir -p "$DOCKER_CACHE_DIR"
     # Save the image if not in cache
     docker save "$image" | lz4 > "$DOCKER_CACHE_DIR/$safe_image.tar.lz4"
   fi
