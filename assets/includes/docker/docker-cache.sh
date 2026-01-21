@@ -8,7 +8,7 @@ function docker_load_cache() {
       cores=$(nproc --all)
 
       printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar.lz4 | \
-        xargs -P "$cores" -I{} bash -c 'lz4 -dc "$1" | docker load' _ {}
+        xargs -P "$cores" -I{} env -i bash --noprofile --norc -c 'lz4 -dc "$1" | docker load' _ {}
     fi
   fi
 }
@@ -56,7 +56,7 @@ function docker_save_cache() {
   cores=$(nproc --all)
   export -f save_image
   export -f info
-  printf '%s\n' $images | xargs -P "$cores" -I{} bash -c 'save_image "$1" "$2"' _ {} "$tmp_cache"
+  printf '%s\n' $images | xargs -P "$cores" -I{} env -i bash --noprofile --norc -c 'save_image "$1" "$2"' _ {} "$tmp_cache"
 
   rm -rf "$tmp_cache"
 }

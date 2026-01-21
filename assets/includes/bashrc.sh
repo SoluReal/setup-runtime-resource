@@ -43,8 +43,6 @@ if [[ ! -f /tmp/main_pid ]]; then
   echo $$ > /tmp/main_pid
 fi
 
-unset BASH_ENV
-
 if [[ ! -f /tmp/runtime-prep-applied ]]; then
   touch /tmp/runtime-prep-applied
 
@@ -89,6 +87,10 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     export PNPM_STORE_PATH=$CACHE_DIRECTORY/pnpm
     mkdir -p "$PNPM_STORE_PATH"
   fi
+
+  if [[ "$PYENV_ENABLED" = "true" ]]; then
+    eval "$(pyenv init - bash)"
+  fi
 fi
 
 function teardown_setup_runtime() {
@@ -129,7 +131,3 @@ function teardown_setup_runtime() {
     rm -rf "$CACHE_DIRECTORY/*" || true
   fi
 }
-
-if [[ "$PYENV_ENABLED" = "true" ]]; then
-  eval "$(pyenv init - bash)"
-fi

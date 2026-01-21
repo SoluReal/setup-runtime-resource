@@ -102,3 +102,6 @@ run:
 
       # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
       bash -c "echo hi" | assert_not_contains "Saving"
+      
+      # Verify that nvm works in bash -c
+      bash -c "nvm --version" | assert_contains "0.40.3"
