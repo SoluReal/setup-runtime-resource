@@ -34,7 +34,7 @@ export CI=true
 
 if [[ -d "$RUNTIME_DIR/plugins" ]]; then
   for f in "$RUNTIME_DIR"/plugins/*.sh; do
-    source "$f"
+    [[ -f "$f" ]] && source "$f"
   done
 fi
 
