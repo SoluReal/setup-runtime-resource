@@ -87,7 +87,6 @@ else
   mmdebstrap_mode=fakechroot
 fi
 rmdir "$mount_probe_dir"
-info "Using mmdebstrap mode: $mmdebstrap_mode"
 
 args=()
 
