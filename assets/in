@@ -77,6 +77,18 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
+# auto picks "sudo" mode whenever euid=0, true even under fuse-only where
+# real mounts aren't actually available -- probe directly instead.
+mount_probe_dir=$(mktemp -d)
+if mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
+  umount "$mount_probe_dir"
+  mmdebstrap_mode=auto
+else
+  mmdebstrap_mode=fakechroot
+fi
+rmdir "$mount_probe_dir"
+info "Using mmdebstrap mode: $mmdebstrap_mode"
+
 args=()
 
 if [[ -n "${dependencies:-}" ]]; then
@@ -95,7 +107,7 @@ fi
 
 args+=(
   --variant=essential \
-  --mode=auto \
+  --mode=$mmdebstrap_mode \
   --aptopt='Acquire::Languages "none"' \
   --aptopt='Apt::Install-Recommends "false"' \
   --aptopt='APT::Get::Install-Suggests "false"' \
