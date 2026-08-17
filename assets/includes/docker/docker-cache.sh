@@ -4,11 +4,11 @@ export DOCKER_CACHE_DIR="$CACHE_DIRECTORY/docker"
 
 function docker_load_cache() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
-    if ls "$DOCKER_CACHE_DIR"/*.tar.lz4 >/dev/null 2>&1; then
+    if ls "$DOCKER_CACHE_DIR"/*.tar >/dev/null 2>&1; then
       cores=$(nproc --all)
 
-      printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar.lz4 | \
-        xargs -P "$cores" -I{} bash -c 'lz4 -dc "$1" | docker load' _ {}
+      printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar | \
+        xargs -P "$cores" -I{} docker load -i {}
     fi
   fi
 }
@@ -24,7 +24,9 @@ function save_image() {
 
   safe_image="${image//\//-}"
   safe_image="${safe_image//:/_}"
-  local cached_file="$tmp_cache/$safe_image.tar.lz4"
+  # Docker image layers are already gzip-compressed internally, so re-compressing
+  # the tarball buys almost nothing and only costs CPU on save/restore - store raw.
+  local cached_file="$tmp_cache/$safe_image.tar"
 
   if [ -f "$cached_file" ]; then
     # Move back from temp dir to cache dir since that is faster than exporting again
@@ -33,7 +35,7 @@ function save_image() {
     info "Saving $image"
     mkdir -p "$DOCKER_CACHE_DIR"
     # Save the image if not in cache
-    docker save "$image" | lz4 > "$DOCKER_CACHE_DIR/$safe_image.tar.lz4"
+    docker save "$image" -o "$DOCKER_CACHE_DIR/$safe_image.tar"
   fi
 }
 
@@ -51,7 +53,7 @@ function docker_save_cache() {
 
   # Move all cached images to the temporary directory
   if [ -d "$DOCKER_CACHE_DIR" ]; then
-    mv "$DOCKER_CACHE_DIR"/*.tar.lz4 "$tmp_cache/" 2>/dev/null || true
+    mv "$DOCKER_CACHE_DIR"/*.tar "$tmp_cache/" 2>/dev/null || true
   fi
 
   cores=$(nproc --all)

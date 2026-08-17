@@ -3,9 +3,14 @@
 function prepare_gradle_config() {
   # Persist gradle.properties at build time
   mkdir -p /root/.gradle
+  # org.gradle.workers.max is capped to the container's actual cgroup CPU quota
+  # (falls back to the host core count when unset) instead of Gradle's own
+  # default, which can over-subscribe on shared workers with a tighter quota
+  # than the machine it's scheduled on.
   cat <<EOF > /root/.gradle/gradle.properties
 org.gradle.caching=true
 org.gradle.parallel=true
+org.gradle.workers.max=${CONTAINER_CPU_LIMIT:-1}
 EOF
   # Overwrite gradle.properties with GRADLE_PROP_ environment variables
   while IFS='=' read -r name value ; do
@@ -27,11 +32,6 @@ function prepare_gradle_cache() {
     # wrapper/dists
     tar -I lz4 -cf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" \
       -C /root/.gradle \
-      --transform='s,^caches/modules-2,caches/modules-2,' \
-      --transform='s,^caches/build-cache-1,caches/build-cache-1,' \
-      --transform='s,^caches/jars-9,caches/jars-9,' \
-      --transform='s,^wrapper/dists,wrapper/dists,' \
-      --transform='s,^configuration-cache,configuration-cache,' \
       caches/jars-9 caches/modules-2 wrapper/dists caches/build-cache-1 configuration-cache 2>/dev/null || true
   fi
 }

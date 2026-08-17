@@ -3,6 +3,11 @@
 source "$RUNTIME_DIR/docker/docker-functions.sh"
 source "$RUNTIME_DIR/docker/docker-cache.sh"
 
+# Exported at source time (not inside a callback) so teardown_docker/stop_docker,
+# which run in a separate backgrounded callback subshell, can still see these paths.
+export DOCKERD_PID_FILE="/tmp/docker.pid"
+export DOCKERD_LOG_FILE="/tmp/docker.log"
+
 function start_docker_daemon() {
   # Waits DOCKERD_TIMEOUT seconds for startup (default: 60)
   DOCKERD_TIMEOUT="${DOCKERD_TIMEOUT:-60}"
@@ -10,10 +15,6 @@ function start_docker_daemon() {
   DOCKER_OPTS="${DOCKER_OPTS:-}"
 
   export DOCKER_OPTS
-
-  # Constants
-  export DOCKERD_PID_FILE="/tmp/docker.pid"
-  export DOCKERD_LOG_FILE="/tmp/docker.log"
 
   if grep -q cgroup2 /proc/filesystems; then
     cgroups_version='v2'
@@ -35,6 +36,10 @@ function restore_docker_cache() {
   fi
 }
 
-register_initialize_callback start_docker_daemon
-register_initialize_callback restore_docker_cache
+function initialize_docker() {
+  start_docker_daemon
+  restore_docker_cache
+}
+
+register_initialize_callback initialize_docker
 register_teardown_callback teardown_docker

@@ -15,6 +15,14 @@ if [[ -d $SDKMAN_DIR ]]; then
     sdk flush temp
     sdk flush broadcast
     set -e
+
+    if [[ "$minimal_image" = "true" ]]; then
+      # jmods (jlink-only) and src.zip (IDE source-attach only) are not needed to
+      # compile or run Java/Gradle/Maven, and are large: strip them from every
+      # installed JDK candidate to shrink the image.
+      find "$SDKMAN_DIR/candidates/java" -mindepth 2 -maxdepth 2 -type d -name jmods -exec rm -rf {} + 2>/dev/null || true
+      find "$SDKMAN_DIR/candidates/java" -mindepth 3 -maxdepth 3 -type f -name src.zip -delete 2>/dev/null || true
+    fi
 fi
 
 export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"

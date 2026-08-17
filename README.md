@@ -88,6 +88,21 @@ The resource `source` configuration supports the following options:
 | `nodejs.bun.version`     | The bun version to install.                                                                                               | `""`    |
 | `testcontainers.enabled` | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
 | `telemetry.disable`      | Disable telemetry (if any).                                                                                               | `false` |
+| `minimal_image`          | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                           | `false` |
+
+## Minimal image
+
+When `minimal_image: true` is set, the resource strips content from the rootfs that isn't needed to compile or
+run code, but is not safe to remove unconditionally for every user:
+
+- Every installed JDK's `lib/jmods` (only used by the `jlink` tool to build a custom trimmed Java runtime) and
+  `lib/src.zip` (the JDK's own source archive, used only by IDEs for source lookup/hover-docs).
+- Go's own `test/` (the Go compiler's test suite) and `api/` (API-compatibility check data) directories - not
+  used by `go build`, `go test`, or `go vet` on your code.
+
+This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
+actually runs `jlink` against the installed JDK, this will break it. This may become the default in a future
+1.x release once it's had more real-world exposure; until then, opt in explicitly if you want the smaller image.
 
 ## Supported runtime options
 
@@ -120,6 +135,11 @@ The following runtime environment variables are available:
 | `DEBUG`             | Enable debug loggging on runtime                                        | `false` |
 | `ENABLE_CACHE`      | Enable caching                                                          | `true`  |
 | `MAX_CACHE_SIZE_MB` | When the cache size is over the MAX_CACHE_SIZE_MB, the cache is pruned. | `""`    |
+
+`CONTAINER_CPU_LIMIT` is also exported automatically (not user-set): it's the task's actual cgroup CPU
+quota, rounded up, falling back to the host core count when no quota is set. Gradle's `org.gradle.workers.max`
+is capped to it by default, and your own scripts can use it too (e.g. `mvn -T $CONTAINER_CPU_LIMIT`) to avoid
+over-subscribing on shared workers with a tighter quota than the machine they land on.
 
 ## SDKMAN
 

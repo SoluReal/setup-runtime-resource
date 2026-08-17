@@ -19,12 +19,19 @@ if [[ -n "$golang_version" ]]; then
 
   info "Installing Go $golang_version for $goarch"
 
-  curl -L "https://go.dev/dl/go${golang_version}.linux-${goarch}.tar.gz" | tar -C "$chroot_dir$RUNTIME_DIR" -xz &
+  curl -fsSL "https://go.dev/dl/go${golang_version}.linux-${goarch}.tar.gz" | tar -C "$chroot_dir$RUNTIME_DIR" -xz &
   info_spinner "Downloading and extracting Go" "Go installed" $!
 
   # Go extracts to a directory named 'go', we want it in GOLANG_RUNTIME_DIR
   mv "$chroot_dir$RUNTIME_DIR/go"/* "$GOROOT/"
   rmdir "$chroot_dir$RUNTIME_DIR/go"
+
+  if [[ "$minimal_image" = "true" ]]; then
+    # test/ and api/ are Go's own compiler test suite and API-compatibility
+    # checks - not used by `go build`/`go test`/`go vet` on user code, so drop
+    # them to shrink the image.
+    rm -rf "$GOROOT/test" "$GOROOT/api"
+  fi
 
   echo "export GOROOT=$GOLANG_RUNTIME_DIR" >> $chroot_dir/root/.bashrc
   echo "export PATH=\$GOROOT/bin:\$PATH" >> $chroot_dir/root/.bashrc

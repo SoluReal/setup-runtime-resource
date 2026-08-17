@@ -42,6 +42,7 @@ export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payloa
 export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload")
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
 export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
+export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
 
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry

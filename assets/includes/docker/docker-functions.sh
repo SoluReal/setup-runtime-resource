@@ -126,7 +126,7 @@ await_docker() {
       fi
       exit 1
     fi
-    sleep 1
+    sleep 0.1
   done
 }
 
@@ -141,7 +141,15 @@ stop_docker() {
   fi
   kill -TERM ${docker_pid} || true
   local start=${SECONDS}
+  local stop_timeout=$(( start + 30 ))
   echo >&2 "Waiting for Docker daemon to exit..."
-  wait ${docker_pid} || true
+  # dockerd was started in a different backgrounded callback subshell, so it is
+  # not a direct child here and `wait` can't be used on it - poll instead.
+  while kill -0 "${docker_pid}" 2>/dev/null; do
+    if (( SECONDS >= stop_timeout )); then
+      break
+    fi
+    sleep 0.1
+  done
   rm -rf $DOCKERD_PID_FILE
 }
