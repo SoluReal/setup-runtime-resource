@@ -69,6 +69,11 @@ start_docker() {
   chown "$RUNTIME_USER:$RUNTIME_USER" "$XDG_RUNTIME_DIR"
   chmod 0700 "$XDG_RUNTIME_DIR"
 
+  # podman doesn't create the socket's parent directory itself - it just
+  # fails the bind if it's missing.
+  mkdir -p "$(dirname "${DOCKER_HOST#unix://}")"
+  chown "$RUNTIME_USER:$RUNTIME_USER" "$(dirname "${DOCKER_HOST#unix://}")"
+
   # Mirror docker-functions.sh's use of Concourse's scratch volume for storage.
   local storage_root="/scratch/podman"
   mkdir -p "$storage_root"
@@ -91,7 +96,12 @@ await_docker() {
   echo >&2 "Waiting ${timeout} seconds for rootless podman to be available..."
   local start=${SECONDS}
   timeout=$(( timeout + start ))
-  until runuser -u "$RUNTIME_USER" -- env "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" "DOCKER_HOST=$DOCKER_HOST" podman info &>/dev/null; do
+  # `podman info` alone isn't a real check: podman's CLI falls back to
+  # operating on local storage directly when the socket isn't there, so it
+  # succeeds even if the API service never actually started - which is
+  # exactly what a real client like Testcontainers needs. Hit the socket
+  # itself via its Docker-API-compatible /_ping endpoint instead.
+  until runuser -u "$RUNTIME_USER" -- curl -sf --unix-socket "${DOCKER_HOST#unix://}" http://localhost/_ping &>/dev/null; do
     if (( SECONDS >= timeout )); then
       echo >&2 'Timed out trying to connect to rootless podman.'
       if [[ -f "${DOCKERD_LOG_FILE}" ]]; then
