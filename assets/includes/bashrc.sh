@@ -7,6 +7,7 @@ export Color_Off='\033[0m' # Text Reset
 export Red='\033[0;31m'    # Red
 export Green='\033[0;32m'  # Green
 export RUNTIME_DIR="/var/runtimes"
+export RUNTIME_USER="runtime"
 
 function info() {
   printf "$Green%s$Color_Off\n" "$1"

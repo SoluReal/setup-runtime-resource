@@ -1,6 +1,10 @@
 #!/bin/bash
 
-source "$RUNTIME_DIR/docker/docker-functions.sh"
+if [[ "${TESTCONTAINERS_ROOTLESS:-false}" = "true" ]]; then
+  source "$RUNTIME_DIR/docker/podman-functions.sh"
+else
+  source "$RUNTIME_DIR/docker/docker-functions.sh"
+fi
 source "$RUNTIME_DIR/docker/docker-cache.sh"
 
 # Exported at source time (not inside a callback) so teardown_docker/stop_docker,

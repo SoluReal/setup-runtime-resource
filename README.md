@@ -87,6 +87,7 @@ The resource `source` configuration supports the following options:
 | `nodejs.pnpm.version`    | The PNPM version to install.                                                                                              | `""`    |
 | `nodejs.bun.version`     | The bun version to install.                                                                                               | `""`    |
 | `testcontainers.enabled` | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
+| `testcontainers.rootless` | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).         | `false` |
 | `telemetry.disable`      | Disable telemetry (if any).                                                                                               | `false` |
 | `minimal_image`          | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                           | `false` |
 
@@ -306,6 +307,28 @@ Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent
 
 Docker images that are in your job will be automatically cached. This prevents the image from being downloaded every
 time your job runs when using e.g. [testcontainers](https://testcontainers.com/).
+
+## Rootless testcontainers
+
+With `testcontainers.rootless: true`, a [podman](https://podman.io/) daemon is used instead of `dockerd`, running as
+a real non-root user (`runtime`) instead of root. A `docker` command is still provided (via `podman-docker`) so
+existing `docker build`/`docker run` calls and Testcontainers itself keep working unmodified against the podman
+socket.
+
+You still need `privileged: true` on the task - it's required either way, since Concourse's containerd runtime
+denies non-privileged tasks both `/dev/fuse` and the ability to create user namespaces at all (this is enforced by
+containerd itself, not something this resource can work around). What `rootless: true` buys you is defense in
+depth: the container runtime that starts your test containers never actually runs as real root, so a container
+escape from a test no longer hands out root on the task.
+
+**This depends on a host-wide kernel toggle.** Rootless podman needs to create user namespaces, which on many
+kernels is blocked for non-root processes by AppArmor's `apparmor_restrict_unprivileged_userns` restriction - even
+inside a `privileged: true` task. If present, this resource relaxes that sysctl for the duration of the task and
+restores it afterwards. That sysctl is **not scoped to your container** - while your task holds it relaxed, every
+other container running on the same Concourse worker also has unprivileged user namespace creation available to
+it. On a worker shared with other pipelines/teams, that's a real, if temporary, reduction in that worker's
+hardening, not just a change to your own task. Consider whether that's acceptable for your worker pool before
+enabling this.
 
 ## Contributing
 

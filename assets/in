@@ -25,6 +25,7 @@ verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
 
 export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
+export testcontainers_rootless=$(jq -r '(.source.testcontainers.rootless // "false")' <<< "$payload")
 export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
 export sdkman_enabled=$(jq -r '(.source.sdkman.enabled // "false")' <<< "$payload")
 export extra_java_versions=$(jq -r '(.source.java.extra_versions // [])' <<< "$payload")
