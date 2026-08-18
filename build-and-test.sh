@@ -7,6 +7,9 @@ RECREATE_PIPELINE="${RECREATE_PIPELINE:-false}"
 echo "Running setup-runtime tests..."
 
 export PIPELINE_FILE="${PIPELINE_FILE:-pipeline.yml}"
+# full|fuse-only|ignore - what `privileged: true` tasks get on the local worker.
+# e.g. CONCOURSE_CONTAINERD_PRIVILEGED_MODE=fuse-only ./build-and-test.sh
+export CONCOURSE_CONTAINERD_PRIVILEGED_MODE="${CONCOURSE_CONTAINERD_PRIVILEGED_MODE:-full}"
 
 export PIPELINE_NAME="setup-runtime-test"
 
