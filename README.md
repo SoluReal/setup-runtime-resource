@@ -330,7 +330,12 @@ it. On a worker shared with other pipelines/teams, that's a real, if temporary, 
 hardening, not just a change to your own task. Consider whether that's acceptable for your worker pool before
 enabling this.
 
-## Contributing
+**Worker `containerd-privileged-mode` needs to be `full`.** Concourse workers support a
+`--containerd-privileged-mode=[full|fuse-only|ignore]` flag controlling what `privileged: true` tasks actually get.
+`fuse-only` ("enough to use fuse-overlayfs") is not enough for this feature: it grants `/dev/fuse` and
+`CAP_SYS_ADMIN`, but keeps a seccomp filter active and doesn't grant write access to the AppArmor sysctl above or
+`CAP_NET_ADMIN`/`/dev/net/tun` for rootless networking - tested directly against a `fuse-only` worker, `docker run`
+fails cleanly with `cannot set user namespace`. Only `full` mode (the default) works today.
 
 Contributions are welcome! Please follow these steps to contribute:
 

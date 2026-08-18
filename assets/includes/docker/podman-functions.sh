@@ -31,7 +31,7 @@ relax_userns_restriction() {
     original="$(cat "$USERNS_SYSCTL")"
     echo "$original" > "$USERNS_SYSCTL_ORIGINAL_FILE"
     if [[ "$original" != "0" ]]; then
-      if ! echo 0 > "$USERNS_SYSCTL" 2>/dev/null; then
+      if [[ ! -w "$USERNS_SYSCTL" ]] || ! { echo 0 > "$USERNS_SYSCTL"; } 2>/dev/null; then
         echo >&2 "Warning: could not relax $USERNS_SYSCTL - rootless podman may fail to start."
       fi
     fi
@@ -40,7 +40,9 @@ relax_userns_restriction() {
 
 restore_userns_restriction() {
   if [[ -f "$USERNS_SYSCTL_ORIGINAL_FILE" && -f "$USERNS_SYSCTL" ]]; then
-    cat "$USERNS_SYSCTL_ORIGINAL_FILE" > "$USERNS_SYSCTL" 2>/dev/null || true
+    if [[ -w "$USERNS_SYSCTL" ]]; then
+      { cat "$USERNS_SYSCTL_ORIGINAL_FILE" > "$USERNS_SYSCTL"; } 2>/dev/null || true
+    fi
     rm -f "$USERNS_SYSCTL_ORIGINAL_FILE"
   fi
 }
@@ -52,10 +54,15 @@ start_docker() {
   relax_userns_restriction
 
   # pasta/slirp4netns (rootless networking) need /dev/net/tun, which most
-  # container images don't ship by default.
+  # container images don't ship by default. Not fatal here even if it fails
+  # (e.g. under containerd's fuse-only privileged mode, which doesn't grant
+  # this) - await_docker below will surface the real failure with dockerd's
+  # own logs if rootless podman can't actually start without it.
   if [[ ! -e /dev/net/tun ]]; then
     mkdir -p /dev/net
-    mknod -m 666 /dev/net/tun c 10 200
+    if ! mknod -m 666 /dev/net/tun c 10 200 2>/dev/null; then
+      echo >&2 "Warning: could not create /dev/net/tun - rootless podman networking may fail to start."
+    fi
   fi
 
   mkdir -p "$XDG_RUNTIME_DIR"
