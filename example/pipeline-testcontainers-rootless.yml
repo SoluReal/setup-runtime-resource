@@ -1,0 +1,82 @@
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  # Running with privileged is not required and is not recommended for production use.
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+resources:
+- name: setup-runtime
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    testcontainers:
+      enabled: true
+      rootless: true
+    telemetry:
+      disable: true
+    verbose: true
+
+jobs:
+- name: test-setup-runtime
+  serial: true
+  plan:
+  - get: setup-runtime
+
+  - task: test-image
+    image: setup-runtime
+    privileged: true
+    config:
+      platform: linux
+
+      caches:
+        - path: cache
+      run:
+        path: bash
+        args:
+          - -ec
+          - |
+            assert_contains() {
+              local needle="$1"
+              local input
+
+              input="$(cat)"
+
+              if [[ "$input" != *"$needle"* ]]; then
+                echo "Expected '$needle' to be in '$input'"
+                exit 1
+              fi
+            }
+
+            # The daemon behind `docker` should be podman, running as the
+            # unprivileged `runtime` user - not dockerd as root.
+            docker info | assert_contains "rootless: true"
+
+            echo "=== DEBUG: DOCKER_HOST=$DOCKER_HOST XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR ==="
+            echo "=== DEBUG: /run/user listing ==="
+            find /run/user -maxdepth 3 2>&1
+            echo "=== DEBUG: docker.log ==="
+            cat /tmp/docker.log 2>&1
+            echo "=== DEBUG: docker info retry ==="
+            docker info 2>&1 | head -5
+            echo "=== END DEBUG ==="
+
+            # The podman socket is created by the daemon process itself, so its
+            # owner tells us who's actually running it (runuser's own outer
+            # process stays root-owned, so checking that PID isn't reliable).
+            stat --format="%U" "${DOCKER_HOST#unix://}" | assert_contains "runtime"
+            command -v dockerd && { echo "dockerd should not be installed in rootless mode"; exit 1; } || true
+
+            echo "FROM alpine" > Dockerfile
+            docker build -t runtime-test .
+
+            docker run -d --name nginx-server -p 8080:80 docker.io/nginx
+            sleep 5
+            curl -sf http://localhost:8080 | assert_contains "Welcome to nginx"
+            docker stop nginx-server
+
+            # Image caching should work the same as the root dockerd path.
+            ls -lah /var/runtimes/docker
