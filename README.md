@@ -136,11 +136,6 @@ The following runtime environment variables are available:
 | `ENABLE_CACHE`      | Enable caching                                                          | `true`  |
 | `MAX_CACHE_SIZE_MB` | When the cache size is over the MAX_CACHE_SIZE_MB, the cache is pruned. | `""`    |
 
-`CONTAINER_CPU_LIMIT` is also exported automatically (not user-set): it's the task's actual cgroup CPU
-quota, rounded up, falling back to the host core count when no quota is set. Gradle's `org.gradle.workers.max`
-is capped to it by default, and your own scripts can use it too (e.g. `mvn -T $CONTAINER_CPU_LIMIT`) to avoid
-over-subscribing on shared workers with a tighter quota than the machine they land on.
-
 ## SDKMAN
 
 [SDKMAN](https://sdkman.io/) is used to install JVM related tools. The `.sdkmanrc` file is supported by this resource.

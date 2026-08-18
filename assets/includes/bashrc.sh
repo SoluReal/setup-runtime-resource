@@ -16,34 +16,6 @@ function error() {
   printf "$Red%s$Color_Off\n" "$1" >&2
 }
 
-# Modern JVMs auto-detect a cgroup CPU quota for their own ergonomics
-# (-XX:ActiveProcessorCount), but Gradle's own worker-count default has been
-# known to still read the host's full core count on shared workers where a
-# task has a tighter cgroup quota than the machine it landed on. Detect the
-# real quota (v2, then v1) so callers can cap worker/thread counts to it,
-# falling back to the host core count when no quota is set (unlimited).
-function detect_container_cpu_limit() {
-  local quota period cpus=""
-
-  if [[ -r /sys/fs/cgroup/cpu.max ]]; then
-    read -r quota period < /sys/fs/cgroup/cpu.max
-  elif [[ -r /sys/fs/cgroup/cpu/cpu.cfs_quota_us && -r /sys/fs/cgroup/cpu/cpu.cfs_period_us ]]; then
-    quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
-    period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
-  fi
-
-  if [[ "$quota" =~ ^[0-9]+$ && "$period" =~ ^[0-9]+$ && "$period" -gt 0 ]]; then
-    # Round up: a 2.5-core quota should still get 3 workers, not 2.
-    cpus=$(( (quota + period - 1) / period ))
-  fi
-
-  if [[ -z "$cpus" || "$cpus" -lt 1 ]]; then
-    cpus=$(nproc --all)
-  fi
-
-  echo "$cpus"
-}
-
 declare -a TEARDOWN_CALLBACKS=()
 declare -a ON_INITIALIZE_CALLBACKS=()
 
@@ -92,8 +64,6 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
   fi
 
   export LZ4_INSTALLED
-
-  export CONTAINER_CPU_LIMIT="$(detect_container_cpu_limit)"
 
   _pids=()
   for cb in "${ON_INITIALIZE_CALLBACKS[@]}"; do
