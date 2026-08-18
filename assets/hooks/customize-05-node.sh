@@ -19,6 +19,12 @@ if [ -n "$nodejs_version" ]; then
   add_metadata "node" "$(nvm current)"
   npm uninstall -g yarn pnpm || true
 
+  if [[ "$minimal_image" = "true" ]]; then
+    # include/ (V8 + Node headers) is only needed by node-gyp to compile native
+    # addons, not to run node/npm/yarn/pnpm - strip it to shrink the image.
+    rm -rf "$NVM_DIR/versions/node/$(nvm current)/include"
+  fi
+
   export COREPACK_HOME="$chroot_dir/$COREPACK_HOME_DIR"
   if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
     # Starting with nodejs 25 corepack is no longer bundled with nodejs.

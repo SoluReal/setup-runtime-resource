@@ -99,10 +99,13 @@ run code, but is not safe to remove unconditionally for every user:
   `lib/src.zip` (the JDK's own source archive, used only by IDEs for source lookup/hover-docs).
 - Go's own `test/` (the Go compiler's test suite) and `api/` (API-compatibility check data) directories - not
   used by `go build`, `go test`, or `go vet` on your code.
+- Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
+  `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
 
 This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
-actually runs `jlink` against the installed JDK, this will break it. This may become the default in a future
-1.x release once it's had more real-world exposure; until then, opt in explicitly if you want the smaller image.
+actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
+become the default in a future 1.x release once it's had more real-world exposure; until then, opt in
+explicitly if you want the smaller image.
 
 ## Supported runtime options
 

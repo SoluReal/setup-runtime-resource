@@ -53,7 +53,7 @@ rm -rf $chroot_dir/etc/apt/*
 
 # Don't need perl
 rm -rf $chroot_dir/usr/share/perl*
-rm -rf $chroot_dir/usr/lib/aarch64-linux-gnu/perl*
+rm -rf $chroot_dir/usr/lib/*-linux-gnu/perl*
 rm -rf $chroot_dir/usr/bin/perl*
 rm -rf $chroot_dir/usr/bin/debconf*
 
