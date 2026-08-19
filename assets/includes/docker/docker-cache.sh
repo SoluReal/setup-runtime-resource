@@ -66,9 +66,28 @@ function teardown_docker() {
   set -e
   DOCKER_END_DATE=$(date +%s)
 
-  USED_IMAGES=$(docker events --since "$(cat /tmp/docker-start)" --until $DOCKER_END_DATE --format '{{json .}}' \
-    | jq -r 'select(.Type=="container") | select(.Action=="start") | .Actor.Attributes.image' \
+  # TODO -as- 20260819 remove
+  set -x
+
+  local events
+  if ! events=$(docker events --since "$(cat /tmp/docker-start)" --until "$DOCKER_END_DATE" --format '{{json .}}' 2>/dev/null); then
+    # Without the event log there is no way to tell which images were used.
+    # Keep whatever is cached rather than falling through to the cleanup below,
+    # which would throw away a perfectly good cache over a transient failure.
+    info "Could not read container events; leaving the image cache untouched"
+    stop_docker
+    return
+  fi
+
+  # docker and podman emit different event schemas: docker names the field
+  # .Action and nests the image under .Actor.Attributes.image, while podman uses
+  # .Status with .Image at the top level. Accept either, otherwise this silently
+  # matches nothing on one of the two runtimes and the cleanup below wipes the
+  # cache on every run.
+  USED_IMAGES=$(printf '%s' "$events" \
+    | jq -r 'select(.Type=="container") | select((.Action // .Status) == "start") | (.Actor.Attributes.image // .Image)' \
     | sort | uniq | xargs)
+
 
   if [[ -n "$USED_IMAGES" ]]; then
     info "Caching docker images"
@@ -78,6 +97,9 @@ function teardown_docker() {
     # Might not be the desired behaviour in every case but sticking with this for now.
     rm -rf "$DOCKER_CACHE_DIR"
   fi
+  
+  # TODO -as- 20260819 remove
+  set +x
 
   stop_docker
 }

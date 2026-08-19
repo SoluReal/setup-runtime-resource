@@ -41,6 +41,7 @@ function info_spinner() {
   if [ "$VERBOSE" = "true" ]; then
     log_info_hook "$progress_message"
     wait $pid
+    printf "\n" >> $OUTPUT_FILE
     log_info_hook "$finished_message"
   else
     while kill -0 "$pid" 2>/dev/null; do
