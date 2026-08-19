@@ -133,13 +133,14 @@ jobs:
             - name: image
           run:
             path: build
-      - task: test-image
-        image: image
-        privileged: true
-        file: pr-source/example/task.yml
       - put: setup-runtime-resource-dev
         params:
-          image: image/image
+          image: image/image.tar
+      - get: test-setup-runtime
+      - task: test-image
+        image: test-setup-runtime
+        privileged: true
+        file: pr-source/example/task.yml
     on_success:
       put: set-build-success-status
       resource: pr-source
