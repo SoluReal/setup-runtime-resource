@@ -14,6 +14,8 @@ export PYENV_RUNTIME_DIR="$RUNTIME_DIR/pyenv"
 export GOLANG_RUNTIME_DIR="$RUNTIME_DIR/golang"
 export COREPACK_HOME_DIR="$RUNTIME_DIR/corepack"
 export RUNTIME_USER="runtime"
+export RUNTIME_UID=1000
+export RUNTIME_HOME="/home/$RUNTIME_USER"
 
 # Compute a deterministic hash of the .source from stdin JSON
 compute_hash() {
@@ -61,7 +63,7 @@ chroot_exec() {
     shift
     local cmd="$*"
     # Use fakechroot to simulate chroot
-    fakechroot chroot "$rootfs" /bin/bash -lc "source /root/.bashrc; $cmd"
+    fakechroot chroot "$rootfs" /bin/bash -lc "source $RUNTIME_HOME/.bashrc; $cmd"
 }
 
 function set_env() {

@@ -8,7 +8,7 @@ function docker_load_cache() {
       cores=$(nproc --all)
 
       printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar | \
-        xargs -P "$cores" -I{} docker load -i {}
+        xargs -P "$cores" -I{} sh -c 'docker load < "$1"' _ {}
     fi
   fi
 }
@@ -24,8 +24,6 @@ function save_image() {
 
   safe_image="${image//\//-}"
   safe_image="${safe_image//:/_}"
-  # Docker image layers are already gzip-compressed internally, so re-compressing
-  # the tarball buys almost nothing and only costs CPU on save/restore - store raw.
   local cached_file="$tmp_cache/$safe_image.tar"
 
   if [ -f "$cached_file" ]; then
@@ -35,7 +33,7 @@ function save_image() {
     info "Saving $image"
     mkdir -p "$DOCKER_CACHE_DIR"
     # Save the image if not in cache
-    docker save "$image" -o "$DOCKER_CACHE_DIR/$safe_image.tar"
+    docker save "$image" > "$DOCKER_CACHE_DIR/$safe_image.tar"
   fi
 }
 

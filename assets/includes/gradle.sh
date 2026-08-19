@@ -2,8 +2,8 @@
 
 function prepare_gradle_config() {
   # Persist gradle.properties at build time
-  mkdir -p /root/.gradle
-  cat <<EOF > /root/.gradle/gradle.properties
+  mkdir -p $RUNTIME_HOME/.gradle
+  cat <<EOF > $RUNTIME_HOME/.gradle/gradle.properties
 org.gradle.caching=true
 org.gradle.parallel=true
 EOF
@@ -12,21 +12,21 @@ EOF
     if [[ $name == GRADLE_PROP_* ]]; then
       prop_name=$(echo "${name#GRADLE_PROP_}" | tr '_' '.')
       # Remove existing property if it exists
-      sed -i "/^${prop_name}=/d" /root/.gradle/gradle.properties
-      echo "${prop_name}=${value}" >> /root/.gradle/gradle.properties
+      sed -i "/^${prop_name}=/d" $RUNTIME_HOME/.gradle/gradle.properties
+      echo "${prop_name}=${value}" >> $RUNTIME_HOME/.gradle/gradle.properties
     fi
   done < <(env)
 }
 
 function prepare_gradle_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "/root/.gradle" ]]; then
+  if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_HOME/.gradle" ]]; then
     info "Saving gradle cache..."
     mkdir -p "$CACHE_DIRECTORY/gradle"
     # Only cache what is needed
     # caches/modules-2
     # wrapper/dists
     tar -I lz4 -cf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" \
-      -C /root/.gradle \
+      -C $RUNTIME_HOME/.gradle \
       caches/jars-9 caches/modules-2 wrapper/dists caches/build-cache-1 configuration-cache 2>/dev/null || true
   fi
 }
@@ -34,8 +34,8 @@ function prepare_gradle_cache() {
 function restore_gradle_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/gradle/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
     info "Restoring gradle cache..."
-    mkdir -p /root/.gradle
-    tar -I lz4 -xf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" -C /root/.gradle
+    mkdir -p $RUNTIME_HOME/.gradle
+    tar -I lz4 -xf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" -C $RUNTIME_HOME/.gradle
   fi
 }
 

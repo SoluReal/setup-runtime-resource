@@ -128,6 +128,11 @@ kill $INFO_LOGGER_PID
 mkdir -p "$dest/rootfs/"
 tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
 tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
+
+# /tmp is stripped from the tarball above; recreate it writable for the
+# non-root task user.
+mkdir -p "$dest/rootfs/tmp"
+chmod 1777 "$dest/rootfs/tmp"
 rm $WORK_ROOTFS
 mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
@@ -135,13 +140,20 @@ if [[ -n "$hook" ]]; then
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
 fi
 
-set_env "BASH_ENV=/root/.bashrc"
+set_env "BASH_ENV=$RUNTIME_HOME/.bashrc"
+
+# Tasks run as the runtime user, except non-rootless testcontainers: dockerd
+# needs real root and the runtime user has no way to escalate.
+task_user="$RUNTIME_USER"
+if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
+  task_user=""
+fi
 
 # Define env vars to load the bash profile in non interactive shells
 # Add cache environment variables so caching is straightforward
 jq -n "{
   env: [$(sed 's/.*/\"&\"/' /tmp/env_vars | tr '\n' ',' | sed 's/,$//')],
-  user: \"\"}
+  user: \"$task_user\"}
 " > "$dest/metadata.json"
 
 log_on_error cat "$dest/metadata.json"
@@ -161,12 +173,16 @@ for f in /tmp/traps_*; do
   if [[ \"\$current_pid\" = \"\$main_pid\" ]]; then
     $cmds
   fi
-}" >> "$dest/rootfs/root/.bashrc"
-    echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs/root/.bashrc"
+}" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
+    echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
   fi
 done
 
-cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs/root/.bashrc"
+cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
+
+# The build ran as root. The task user needs to write to both: sdk/nvm/pyenv
+# install into $RUNTIME_DIR at task time, gradle/maven write under $HOME.
+chown -R "$RUNTIME_UID:$RUNTIME_UID" "$dest/rootfs$RUNTIME_HOME" "$dest/rootfs$RUNTIME_DIR"
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"
 

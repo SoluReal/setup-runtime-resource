@@ -1,120 +1,63 @@
 #!/bin/bash
 
-# Rootless equivalent of docker-functions.sh: runs podman's Docker-compatible
-# API as a real non-root user, so the container runtime itself never holds
-# actual root - even though the outer Concourse task still needs
-# `privileged: true` (containerd's non-privileged tasks block user namespace
-# creation and don't expose /dev/fuse at all, so there is no way to avoid
-# `privileged: true` itself; this only reduces what runs as real root inside
-# it). See README for the AppArmor sysctl tradeoff this depends on.
+# Rootless equivalent of docker-functions.sh. This uses podman instead
+# since podman can run rootless and is daemonless.
 
-export XDG_RUNTIME_DIR="/run/user/$(id -u "$RUNTIME_USER")"
-export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
+export XDG_RUNTIME_DIR="$HOME/.run"
+PODMAN_SOCKET="${XDG_RUNTIME_DIR}/podman/podman.sock"
+PODMAN_SOCKET_DIR="$(dirname "$PODMAN_SOCKET")"
+export DOCKER_HOST="unix://${PODMAN_SOCKET}"
 
-USERNS_SYSCTL="/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
-# start_docker and stop_docker run in separate backgrounded callback subshells
-# (see docker.sh), so the original value has to survive on disk, not in a
-# bash variable.
-USERNS_SYSCTL_ORIGINAL_FILE="/tmp/userns-sysctl-original"
+# Testcontainers' Ryuk reaper doesn't work against rootless podman.
+# Source: https://podman-desktop.io/tutorial/testcontainers-with-podman
+export TESTCONTAINERS_RYUK_DISABLED="${TESTCONTAINERS_RYUK_DISABLED:-true}"
 
-# Route every `docker` call (ours and the user's build scripts) through the
-# rootless user, so caching and manual `docker build`/`run` calls all land in
-# the same podman storage as the daemon started in start_docker.
-docker() {
-  runuser -u "$RUNTIME_USER" -- env "DOCKER_HOST=$DOCKER_HOST" "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" docker "$@"
-}
-export -f docker
-
-relax_userns_restriction() {
-  if [[ -f "$USERNS_SYSCTL" ]]; then
-    local original
-    original="$(cat "$USERNS_SYSCTL")"
-    echo "$original" > "$USERNS_SYSCTL_ORIGINAL_FILE"
-    if [[ "$original" != "0" ]]; then
-      if [[ ! -w "$USERNS_SYSCTL" ]] || ! { echo 0 > "$USERNS_SYSCTL"; } 2>/dev/null; then
-        echo >&2 "Warning: could not relax $USERNS_SYSCTL - rootless podman may fail to start."
-      fi
-    fi
-  fi
-}
-
-restore_userns_restriction() {
-  if [[ -f "$USERNS_SYSCTL_ORIGINAL_FILE" && -f "$USERNS_SYSCTL" ]]; then
-    if [[ -w "$USERNS_SYSCTL" ]]; then
-      { cat "$USERNS_SYSCTL_ORIGINAL_FILE" > "$USERNS_SYSCTL"; } 2>/dev/null || true
-    fi
-    rm -f "$USERNS_SYSCTL_ORIGINAL_FILE"
-  fi
-}
-
-# Setup container environment and start the rootless podman API socket in the background.
+# Podman is daemonless, but Testcontainers talks to the API socket, so the
+# service has to be started explicitly.
 start_docker() {
-  echo >&2 "Setting up rootless Testcontainers environment (podman)..."
+  info "Setting up rootless Testcontainers environment (podman)..."
 
-  relax_userns_restriction
-
-  # pasta/slirp4netns (rootless networking) need /dev/net/tun, which most
-  # container images don't ship by default. Not fatal here even if it fails
-  # (e.g. under containerd's fuse-only privileged mode, which doesn't grant
-  # this) - await_docker below will surface the real failure with dockerd's
-  # own logs if rootless podman can't actually start without it.
+  # pasta needs /dev/net/tun for published ports. No image ships it and mknod
+  # needs root, so the worker must provide it. Not fatal - podman still runs.
   if [[ ! -e /dev/net/tun ]]; then
-    mkdir -p /dev/net
-    if ! mknod -m 666 /dev/net/tun c 10 200 2>/dev/null; then
-      echo >&2 "Warning: could not create /dev/net/tun - rootless podman networking may fail to start."
-    fi
+    error "/dev/net/tun is missing - rootless container networking (published ports) will not work."
+    error "The worker must provide this device (see README: worker requirements)."
   fi
 
-  mkdir -p "$XDG_RUNTIME_DIR"
-  chown "$RUNTIME_USER:$RUNTIME_USER" "$XDG_RUNTIME_DIR"
-  chmod 0700 "$XDG_RUNTIME_DIR"
+  # podman doesn't create the socket's parent dir; it just fails the bind.
+  mkdir -p "$PODMAN_SOCKET_DIR"
 
-  # podman doesn't create the socket's parent directory itself - it just
-  # fails the bind if it's missing.
-  mkdir -p "$(dirname "${DOCKER_HOST#unix://}")"
-  chown "$RUNTIME_USER:$RUNTIME_USER" "$(dirname "${DOCKER_HOST#unix://}")"
+  rm -f "${CONTAINER_RUNTIME_PID_FILE}"
+  touch "${CONTAINER_RUNTIME_LOG_FILE}"
 
-  # Mirror docker-functions.sh's use of Concourse's scratch volume for storage.
-  local storage_root="/scratch/podman"
-  mkdir -p "$storage_root"
-  chown -R "$RUNTIME_USER:$RUNTIME_USER" "$storage_root"
-
-  rm -f "${DOCKERD_PID_FILE}"
-  touch "${DOCKERD_LOG_FILE}"
-
-  echo >&2 "Starting rootless podman..."
-  runuser -u "$RUNTIME_USER" -- env "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
-    podman --root "$storage_root/storage" --runroot "$storage_root/run" \
-    system service --time=0 "$DOCKER_HOST" &>"${DOCKERD_LOG_FILE}" &
-  echo "$!" > "${DOCKERD_PID_FILE}"
+  info "Starting rootless podman..."
+  podman system service --time=0 "$DOCKER_HOST" &>"${CONTAINER_RUNTIME_LOG_FILE}" &
+  echo "$!" > "${CONTAINER_RUNTIME_PID_FILE}"
 }
 
 # Wait for the rootless podman socket to be healthy.
-# Timeout after DOCKERD_TIMEOUT seconds
+# Timeout after CONTAINER_RUNTIME_TIMEOUT seconds
 await_docker() {
-  local timeout="${DOCKERD_TIMEOUT}"
-  echo >&2 "Waiting ${timeout} seconds for rootless podman to be available..."
+  local timeout="${CONTAINER_RUNTIME_TIMEOUT}"
+  info "Waiting ${timeout} seconds for rootless podman socket to be available..."
   local start=${SECONDS}
   timeout=$(( timeout + start ))
-  # `podman info` alone isn't a real check: podman's CLI falls back to
-  # operating on local storage directly when the socket isn't there, so it
-  # succeeds even if the API service never actually started - which is
-  # exactly what a real client like Testcontainers needs. Hit the socket
-  # itself via its Docker-API-compatible /_ping endpoint instead.
-  until runuser -u "$RUNTIME_USER" -- curl -sf --unix-socket "${DOCKER_HOST#unix://}" http://localhost/_ping &>/dev/null; do
+  # `podman info` is not a real check: the CLI works without the socket, so it
+  # passes even when the service never started. Probe the socket itself.
+  until curl -sf --unix-socket "$PODMAN_SOCKET" http://localhost/_ping &>/dev/null; do
     if (( SECONDS >= timeout )); then
-      echo >&2 'Timed out trying to connect to rootless podman.'
-      if [[ -f "${DOCKERD_LOG_FILE}" ]]; then
-        echo >&2 '---PODMAN LOGS---'
-        cat >&2 "${DOCKERD_LOG_FILE}"
+      error 'Timed out trying to connect to rootless podman.'
+      if [[ -f "${CONTAINER_RUNTIME_LOG_FILE}" ]]; then
+        error '---PODMAN LOGS---'
+        cat >&2 "${CONTAINER_RUNTIME_LOG_FILE}"
       fi
       exit 1
     fi
-    if [[ -f "${DOCKERD_PID_FILE}" ]] && ! kill -0 $(cat "${DOCKERD_PID_FILE}") 2>/dev/null; then
-      echo >&2 'Rootless podman failed to start.'
-      if [[ -f "${DOCKERD_LOG_FILE}" ]]; then
-        echo >&2 '---PODMAN LOGS---'
-        cat >&2 "${DOCKERD_LOG_FILE}"
+    if [[ -f "${CONTAINER_RUNTIME_PID_FILE}" ]] && ! kill -0 $(cat "${CONTAINER_RUNTIME_PID_FILE}") 2>/dev/null; then
+      error 'Rootless podman failed to start.'
+      if [[ -f "${CONTAINER_RUNTIME_LOG_FILE}" ]]; then
+        error '---PODMAN LOGS---'
+        cat >&2 "${CONTAINER_RUNTIME_LOG_FILE}"
       fi
       exit 1
     fi
@@ -122,15 +65,15 @@ await_docker() {
   done
 }
 
-# Gracefully stop the rootless podman service and undo the AppArmor relaxation.
+# Gracefully stop the rootless podman API service.
 stop_docker() {
-  if [[ -f "${DOCKERD_PID_FILE}" ]]; then
-    local docker_pid="$(cat ${DOCKERD_PID_FILE})"
+  if [[ -f "${CONTAINER_RUNTIME_PID_FILE}" ]]; then
+    local docker_pid="$(cat ${CONTAINER_RUNTIME_PID_FILE})"
     if [[ -n "${docker_pid}" ]]; then
       kill -TERM ${docker_pid} 2>/dev/null || true
       local start=${SECONDS}
       local stop_timeout=$(( start + 30 ))
-      echo >&2 "Waiting for rootless podman to exit..."
+      info "Waiting for rootless podman to exit..."
       while kill -0 "${docker_pid}" 2>/dev/null; do
         if (( SECONDS >= stop_timeout )); then
           break
@@ -138,8 +81,6 @@ stop_docker() {
         sleep 0.1
       done
     fi
-    rm -f "${DOCKERD_PID_FILE}"
+    rm -f "${CONTAINER_RUNTIME_PID_FILE}"
   fi
-
-  restore_userns_restriction
 }

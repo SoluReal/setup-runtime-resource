@@ -98,7 +98,7 @@ run:
       go version | assert_contains "go version go1.22.1"
       
       # Check gradle.properties persistence
-      cat /root/.gradle/gradle.properties | assert_contains "org.gradle.caching=true"
+      cat "$RUNTIME_HOME/.gradle/gradle.properties" | assert_contains "org.gradle.caching=true"
 
       # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
       bash -c "echo hi" | assert_not_contains "Saving"

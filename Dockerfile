@@ -12,4 +12,4 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY assets /opt/resource/
-RUN chmod +x /opt/resource/*
+RUN chmod +x /opt/resource/* /opt/resource/hooks/*

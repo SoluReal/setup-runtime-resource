@@ -7,14 +7,12 @@ else
 fi
 source "$RUNTIME_DIR/docker/docker-cache.sh"
 
-# Exported at source time (not inside a callback) so teardown_docker/stop_docker,
-# which run in a separate backgrounded callback subshell, can still see these paths.
-export DOCKERD_PID_FILE="/tmp/docker.pid"
-export DOCKERD_LOG_FILE="/tmp/docker.log"
+export CONTAINER_RUNTIME_PID_FILE="/tmp/container-runtime.pid"
+export CONTAINER_RUNTIME_LOG_FILE="/tmp/container-runtime.log"
 
 function start_docker_daemon() {
-  # Waits DOCKERD_TIMEOUT seconds for startup (default: 60)
-  DOCKERD_TIMEOUT="${DOCKERD_TIMEOUT:-60}"
+  # Waits CONTAINER_RUNTIME_TIMEOUT seconds for startup (default: 60).
+  CONTAINER_RUNTIME_TIMEOUT="${CONTAINER_RUNTIME_TIMEOUT:-60}"
   # Accepts optional DOCKER_OPTS (default: --data-root /scratch/docker)
   DOCKER_OPTS="${DOCKER_OPTS:-}"
 

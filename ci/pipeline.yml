@@ -114,7 +114,6 @@ jobs:
       - task: test-image
         image: test-setup-runtime
         privileged: true
-        tags: [dind]
         file: repo/example/task.yml
 
   - name: pr-build-and-test

@@ -8,6 +8,9 @@ export Red='\033[0;31m'    # Red
 export Green='\033[0;32m'  # Green
 export RUNTIME_DIR="/var/runtimes"
 export RUNTIME_USER="runtime"
+export RUNTIME_HOME="/home/$RUNTIME_USER"
+# Concourse execs the task without a login shell, so HOME may be unset.
+export HOME="${HOME:-$RUNTIME_HOME}"
 
 function info() {
   printf "$Green%s$Color_Off\n" "$1"
@@ -66,15 +69,24 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
 
   export LZ4_INSTALLED
 
+  # Callbacks run in parallel; `wait`'s exit status is the only signal that
+  # one failed, and a failed runtime start must abort the task.
   _pids=()
   for cb in "${ON_INITIALIZE_CALLBACKS[@]}"; do
     "$cb" &
     _pids+=($!)
   done
+  _failed=0
   for _pid in "${_pids[@]}"; do
-    wait "$_pid"
+    wait "$_pid" || _failed=1
   done
   unset _pids _pid
+  if (( _failed )); then
+    unset _failed
+    error "A setup-runtime initialize callback failed - aborting."
+    exit 1
+  fi
+  unset _failed
 
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     export COREPACK_HOME=$CACHE_DIRECTORY/corepack

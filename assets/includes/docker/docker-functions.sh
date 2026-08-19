@@ -94,35 +94,35 @@ start_docker() {
     docker_opts+=' --data-root /scratch/docker'
   fi
 
-  rm -f "${DOCKERD_PID_FILE}"
-  touch "${DOCKERD_LOG_FILE}"
+  rm -f "${CONTAINER_RUNTIME_PID_FILE}"
+  touch "${CONTAINER_RUNTIME_LOG_FILE}"
 
   echo >&2 "Starting Docker..."
-  dockerd ${docker_opts} &>"${DOCKERD_LOG_FILE}" &
-  echo "$!" > "${DOCKERD_PID_FILE}"
+  dockerd ${docker_opts} &>"${CONTAINER_RUNTIME_LOG_FILE}" &
+  echo "$!" > "${CONTAINER_RUNTIME_PID_FILE}"
 }
 
 # Wait for docker daemon to be healthy
-# Timeout after DOCKERD_TIMEOUT seconds
+# Timeout after CONTAINER_RUNTIME_TIMEOUT seconds
 await_docker() {
-  local timeout="${DOCKERD_TIMEOUT}"
+  local timeout="${CONTAINER_RUNTIME_TIMEOUT}"
   echo >&2 "Waiting ${timeout} seconds for Docker to be available..."
   local start=${SECONDS}
   timeout=$(( timeout + start ))
   until docker info &>/dev/null; do
     if (( SECONDS >= timeout )); then
       echo >&2 'Timed out trying to connect to docker daemon.'
-      if [[ -f "${DOCKERD_LOG_FILE}" ]]; then
+      if [[ -f "${CONTAINER_RUNTIME_LOG_FILE}" ]]; then
         echo >&2 '---DOCKERD LOGS---'
-        cat >&2 "${DOCKERD_LOG_FILE}"
+        cat >&2 "${CONTAINER_RUNTIME_LOG_FILE}"
       fi
       exit 1
     fi
-    if [[ -f "${DOCKERD_PID_FILE}" ]] && ! kill -0 $(cat "${DOCKERD_PID_FILE}"); then
+    if [[ -f "${CONTAINER_RUNTIME_PID_FILE}" ]] && ! kill -0 $(cat "${CONTAINER_RUNTIME_PID_FILE}"); then
       echo >&2 'Docker daemon failed to start, is the container running in privileged mode?'
-      if [[ -f "${DOCKERD_LOG_FILE}" ]]; then
+      if [[ -f "${CONTAINER_RUNTIME_LOG_FILE}" ]]; then
         echo >&2 '---DOCKERD LOGS---'
-        cat >&2 "${DOCKERD_LOG_FILE}"
+        cat >&2 "${CONTAINER_RUNTIME_LOG_FILE}"
       fi
       exit 1
     fi
@@ -132,10 +132,10 @@ await_docker() {
 
 # Gracefully stop Docker daemon.
 stop_docker() {
-  if ! [[ -f "${DOCKERD_PID_FILE}" ]]; then
+  if ! [[ -f "${CONTAINER_RUNTIME_PID_FILE}" ]]; then
     return 0
   fi
-  local docker_pid="$(cat ${DOCKERD_PID_FILE})"
+  local docker_pid="$(cat ${CONTAINER_RUNTIME_PID_FILE})"
   if [[ -z "${docker_pid}" ]]; then
     return 0
   fi
@@ -151,5 +151,5 @@ stop_docker() {
     fi
     sleep 0.1
   done
-  rm -rf $DOCKERD_PID_FILE
+  rm -rf $CONTAINER_RUNTIME_PID_FILE
 }

@@ -14,17 +14,13 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
     add_metadata "testcontainers-rootless" "true"
     set_env "TESTCONTAINERS_ROOTLESS=true"
 
-    # Rootless podman needs a real (non-root) user with its own subuid/subgid
-    # range to map container UIDs into. Written directly rather than via
-    # useradd since that would need to run inside the chroot.
-    RUNTIME_UID=1000
-    echo "$RUNTIME_USER:x:$RUNTIME_UID:$RUNTIME_UID:runtime:/home/$RUNTIME_USER:/bin/bash" >> "$chroot_dir/etc/passwd"
-    echo "$RUNTIME_USER:!:19000:0:99999:7:::" >> "$chroot_dir/etc/shadow"
-    echo "$RUNTIME_USER:x:$RUNTIME_UID:" >> "$chroot_dir/etc/group"
-    echo "$RUNTIME_USER:100000:65536" >> "$chroot_dir/etc/subuid"
-    echo "$RUNTIME_USER:100000:65536" >> "$chroot_dir/etc/subgid"
+    # The runtime user and its subuid/subgid ranges are created for every
+    # rootfs in customize-00-runtime-user.sh, since tasks now run as that user
+    # regardless of whether testcontainers is enabled.
 
-    mkdir -p "$chroot_dir/home/$RUNTIME_USER"
-    chown "$RUNTIME_UID:$RUNTIME_UID" "$chroot_dir/home/$RUNTIME_USER"
+    # podman-docker's `docker` shim prints "Emulate Docker CLI using podman..."
+    # on every single call; this file is the documented way to silence it.
+    mkdir -p "$chroot_dir/etc/containers"
+    touch "$chroot_dir/etc/containers/nodocker"
   fi
 fi

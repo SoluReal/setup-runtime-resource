@@ -20,7 +20,7 @@ verified by actually running a Concourse pipeline.
 # Run a specific example pipeline instead of the default:
 PIPELINE_FILE=pipeline-maven.yml ./build-and-test.sh
 
-# Recreate the pipeline from scratch:
+# Recreate the pipeline from scratch (all cache is gone):
 RECREATE_PIPELINE=true ./build-and-test.sh
 ```
 
