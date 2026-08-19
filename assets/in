@@ -141,6 +141,7 @@ if [[ -n "$hook" ]]; then
 fi
 
 set_env "BASH_ENV=$RUNTIME_HOME/.bashrc"
+set_env "HOME=$RUNTIME_HOME"
 
 # Tasks run as the runtime user, except non-rootless testcontainers: dockerd
 # needs real root and the runtime user has no way to escalate.
