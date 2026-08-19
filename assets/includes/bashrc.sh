@@ -33,7 +33,7 @@ function register_initialize_callback() {
 
 CACHE_DIR="${CACHE_DIR:-cache}"
 export ENABLE_CACHE="${ENABLE_CACHE:-true}"
-export CACHE_DIRECTORY="$(pwd)/$CACHE_DIR"
+export CACHE_DIRECTORY="${CACHE_DIRECTORY:-$(pwd)/$CACHE_DIR}"
 export CI=true
 
 if [[ -d "$RUNTIME_DIR/plugins" ]]; then
