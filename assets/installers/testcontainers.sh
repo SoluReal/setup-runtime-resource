@@ -9,7 +9,7 @@ function testcontainers_get_dependencies() {
       # podman-docker provides a `docker` CLI shim; fuse-overlayfs/passt/uidmap are
       # what let podman run fully rootless (no dockerd, no real root). passt provides
       # pasta, podman's rootless network backend.
-      echo "$shared podman podman-docker fuse-overlayfs passt uidmap"
+      echo "$shared podman podman-docker fuse-overlayfs passt uidmap nftables"
     else
       echo "$shared docker-ce docker-ce-cli containerd.io docker-buildx-plugin"
     fi

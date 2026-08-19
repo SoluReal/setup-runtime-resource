@@ -56,5 +56,7 @@ rm -rf $chroot_dir/usr/share/perl*
 rm -rf $chroot_dir/usr/lib/*-linux-gnu/perl*
 rm -rf $chroot_dir/usr/bin/perl*
 rm -rf $chroot_dir/usr/bin/debconf*
+# shasum is a perl script, so removing perl above leaves it an orphan shasum
+rm -rf $chroot_dir/usr/bin/shasum
 
 log_info_hook "Cleanup finished"
