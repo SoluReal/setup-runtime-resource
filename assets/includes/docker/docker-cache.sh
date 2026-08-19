@@ -65,9 +65,6 @@ function docker_save_cache() {
 function teardown_docker() {
   set -e
 
-  # TODO -as- 20260819 remove
-  set -x
-
   local events events_err
   events_err=$(mktemp)
 
@@ -112,9 +109,6 @@ function teardown_docker() {
     # Might not be the desired behaviour in every case but sticking with this for now.
     rm -rf "$DOCKER_CACHE_DIR"
   fi
-
-  # TODO -as- 20260819 remove
-  set +x
 
   stop_docker
 }
