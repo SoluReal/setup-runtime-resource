@@ -59,21 +59,6 @@ resources:
       private_key: ((github-private-key))
       base_branch: master
 
-  - name: setup-runtime-resource-pr
-    type: registry-image
-    icon: docker
-    source:
-      repository: docker.io/solureal/setup-runtime-resource
-      tag: pr
-      username: ((dockerhub-libs-username))
-      password: ((dockerhub-libs-password))
-
-  - name: test-setup-runtime-pr
-    type: setup-runtime-resource-pr
-    icon: account-hard-hat
-    source:
-      ((SETUP_RUNTIME_SOURCE))
-
 jobs:
   - name: build
     plan:
@@ -120,9 +105,8 @@ jobs:
     serial: true
     plan:
       - get: pr-source
-        trigger: true
-        params:
-          depth: 1
+        trigger: false # don't run on every PR created.
+        params: { depth: 1 }
       - put: set-pending-status
         resource: pr-source
         params:
@@ -137,8 +121,9 @@ jobs:
             source:
               repository: concourse/oci-build-task
           params:
-            IMAGE_PLATFORM: linux/arm64,linux/amd64
-            OUTPUT_OCI: true
+            IMAGE_PLATFORM: linux/arm64 # ,linux/amd64 disabled for speed now.
+#            OUTPUT_OCI: true
+            UNPACK_ROOTFS: true
           caches:
             - path: cache
           inputs:
@@ -148,15 +133,13 @@ jobs:
             - name: image
           run:
             path: build
-      - put: setup-runtime-resource-pr
+      - task: test-image
+        image: image
+        privileged: true
+        file: pr-source/example/task.yml
+      - put: setup-runtime-resource-dev
         params:
           image: image/image
-      - get: test-setup-runtime-pr
-      - task: test-image
-        image: test-setup-runtime-pr
-        privileged: true
-        tags: [dind]
-        file: pr-source/example/task.yml
     on_success:
       put: set-build-success-status
       resource: pr-source
@@ -250,13 +233,6 @@ resource_types:
     source:
       repository: solureal/setup-runtime-resource
       tag: dev
-
-  - name: setup-runtime-resource-pr
-    type: registry-image
-    privileged: true
-    source:
-      repository: solureal/setup-runtime-resource
-      tag: pr
 
   - name: github-pr
     type: registry-image

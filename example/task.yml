@@ -39,7 +39,6 @@ run:
       
       ls -lah cache
       
-      ls -lah /var/runtimes/docker
       echo $PATH | assert_contains "/var/runtimes/nvm/versions/node/v"
       echo $PATH | assert_contains "/var/runtimes/sdkman/candidates/java/current/bin"
       
