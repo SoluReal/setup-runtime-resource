@@ -3,7 +3,7 @@
 set -eo pipefail
 
 chroot_dir="$1"
-source $ROOT_DIR/common.sh
+source "$ROOT_DIR"/common.sh
 
 # Tasks run as this user (metadata.json sets `user`), so it must exist in
 # every rootfs, not just the rootless testcontainers one.

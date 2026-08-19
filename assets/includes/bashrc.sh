@@ -112,6 +112,22 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
   fi
 fi
 
+# Empty $CACHE_DIRECTORY while keeping the directory itself, since Concourse
+# owns the mount point.
+#
+# This used to be `rm -rf "$CACHE_DIRECTORY/*"`, which is a literal path ending
+# in an asterisk: the glob never expanded, so nothing was ever deleted and both
+# cleanup paths below were silently doing nothing. find also covers dotfiles,
+# which a bare * skips.
+function clear_cache_directory() {
+  if [[ ! -d "$CACHE_DIRECTORY" ]]; then
+    return 0
+  fi
+
+  # Don't fail on this, you can receive Device or resource busy
+  find "$CACHE_DIRECTORY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+}
+
 function teardown_setup_runtime() {
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     if [[ ! -f /tmp/runtime-teardown-executed ]]; then
@@ -141,7 +157,7 @@ function teardown_setup_runtime() {
 
         if (( size_bytes > max_size )); then
           info "Cache size is $(du -sh "$CACHE_DIRECTORY" 2>/dev/null) which is above $MAX_CACHE_SIZE_MB MB. Cleaning up $CACHE_DIRECTORY..."
-          rm -rf "$CACHE_DIRECTORY/*" || true
+          clear_cache_directory
           info "Cleanup completed."
         fi
       fi
@@ -152,7 +168,6 @@ function teardown_setup_runtime() {
       fi
     fi
   else
-    # Don't fail on this, you can receive Device or resource busy
-    rm -rf "$CACHE_DIRECTORY/*" || true
+    clear_cache_directory
   fi
 }

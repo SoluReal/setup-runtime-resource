@@ -111,4 +111,4 @@ jobs:
             KOTLIN
 
             echo "=== running the test suite ==="
-            ./gradlew test --rerun --info
+            ./gradlew clean test --rerun --info

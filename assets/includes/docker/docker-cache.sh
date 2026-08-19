@@ -64,32 +64,47 @@ function docker_save_cache() {
 
 function teardown_docker() {
   set -e
-  DOCKER_END_DATE=$(date +%s)
 
   # TODO -as- 20260819 remove
   set -x
 
-  local events
-  if ! events=$(docker events --since "$(cat /tmp/docker-start)" --until "$DOCKER_END_DATE" --format '{{json .}}' 2>/dev/null); then
+  local events events_err
+  events_err=$(mktemp)
+
+  # container_events is runtime-specific (see docker-functions.sh and
+  # podman-functions.sh); the two runtimes need different flags to produce a
+  # bounded, non-streaming result.
+  #
+  # Never discard stderr here: the runtime reports why it produced no events on
+  # that channel, and swallowing it turns a diagnosable failure into a silent one.
+  if ! events=$(container_events 2>"$events_err"); then
     # Without the event log there is no way to tell which images were used.
     # Keep whatever is cached rather than falling through to the cleanup below,
     # which would throw away a perfectly good cache over a transient failure.
     info "Could not read container events; leaving the image cache untouched"
+    cat "$events_err" >&2
+    rm -f "$events_err"
     stop_docker
     return
   fi
 
+  if [[ -s "$events_err" ]]; then
+    info "reading container events reported: $(cat "$events_err")"
+  fi
+  rm -f "$events_err"
+
   # docker and podman emit different event schemas: docker names the field
   # .Action and nests the image under .Actor.Attributes.image, while podman uses
   # .Status with .Image at the top level. Accept either, otherwise this silently
-  # matches nothing on one of the two runtimes and the cleanup below wipes the
-  # cache on every run.
+  # matches nothing on one of the two runtimes and nothing is ever cached.
   USED_IMAGES=$(printf '%s' "$events" \
     | jq -r 'select(.Type=="container") | select((.Action // .Status) == "start") | (.Actor.Attributes.image // .Image)' \
     | sort | uniq | xargs)
 
 
   if [[ -n "$USED_IMAGES" ]]; then
+    # Images that were cached but not used this run stay behind in tmp_cache and
+    # are dropped there, so the cache still tracks what the build actually needs.
     info "Caching docker images"
     docker_save_cache $USED_IMAGES
   else
@@ -97,7 +112,7 @@ function teardown_docker() {
     # Might not be the desired behaviour in every case but sticking with this for now.
     rm -rf "$DOCKER_CACHE_DIR"
   fi
-  
+
   # TODO -as- 20260819 remove
   set +x
 

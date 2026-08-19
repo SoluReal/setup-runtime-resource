@@ -28,7 +28,6 @@ function start_docker_daemon() {
 
   start_docker
   await_docker
-  date +%s > /tmp/docker-start
 }
 
 function restore_docker_cache() {
