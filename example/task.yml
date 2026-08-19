@@ -152,4 +152,4 @@ run:
       KOTLIN
 
       echo "=== running the test suite ==="
-      ./gradlew test --no-daemon --info
+      ./gradlew clean test --rerun --info
