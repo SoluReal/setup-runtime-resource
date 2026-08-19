@@ -35,3 +35,4 @@ testcontainers:
 telemetry:
   disable: true
 verbose: true
+minimal_image: true
