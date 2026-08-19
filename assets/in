@@ -150,6 +150,8 @@ if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true"
   task_user=""
 fi
 
+add_metadata "user" "$task_user"
+
 # Define env vars to load the bash profile in non interactive shells
 # Add cache environment variables so caching is straightforward
 jq -n "{
