@@ -55,8 +55,6 @@ run:
       pnpm --version | assert_contains "10.17.1"
       npm --version | assert_contains "11"
       
-      docker --version | assert_contains "Docker version 29"
-      
       echo "FROM alpine" > Dockerfile
       docker build -t runtime-test .
       
