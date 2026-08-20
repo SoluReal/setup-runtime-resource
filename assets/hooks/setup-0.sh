@@ -9,7 +9,7 @@ source $ROOT_DIR/common.sh
 
 log_info_hook "Installing dependencies"
 
-if [[ "$testcontainers_enabled" = "true" ]]; then
+if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
   SOURCEPARTS="/etc/apt/sources.d/"
   eval "$(apt-config shell SOURCEPARTS Dir::Etc::SourceParts/d)"
 
