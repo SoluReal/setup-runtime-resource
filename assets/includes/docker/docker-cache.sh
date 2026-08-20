@@ -13,53 +13,70 @@ function docker_load_cache() {
   fi
 }
 
-function save_image() {
-  image=$1
-  tmp_cache=$2
+# Cache filename for an image reference, e.g.
+# docker.io/library/redis:7-alpine -> docker.io-library-redis_7-alpine.tar
+function docker_cache_filename() {
+  local image="$1"
 
   # If no tag is specified, assume :latest
   if [[ "$image" != *:* ]]; then
     image="$image:latest"
   fi
 
-  safe_image="${image//\//-}"
+  local safe_image="${image//\//-}"
   safe_image="${safe_image//:/_}"
-  local cached_file="$tmp_cache/$safe_image.tar"
+  echo "$safe_image.tar"
+}
+
+# Save one image to the cache, but only if it isn't already there.
+function save_image_if_missing() {
+  local image="$1"
+  local cached_file="$DOCKER_CACHE_DIR/$(docker_cache_filename "$image")"
 
   if [ -f "$cached_file" ]; then
-    # Move back from temp dir to cache dir since that is faster than exporting again
-    mv "$cached_file" "$DOCKER_CACHE_DIR"
-  else
-    info "Saving $image"
-    mkdir -p "$DOCKER_CACHE_DIR"
-    # Save the image if not in cache
-    docker save "$image" > "$DOCKER_CACHE_DIR/$safe_image.tar"
+    return 0
   fi
+
+  info "Saving $image"
+  docker save "$image" > "$cached_file"
 }
 
 function docker_save_cache() {
   local images="$*"
 
-  # Ensure cache directory exists
-  if [ ! -d "$DOCKER_CACHE_DIR" ]; then
-    mkdir -p "$DOCKER_CACHE_DIR"
-  fi
+  mkdir -p "$DOCKER_CACHE_DIR"
 
-  # Create a temporary directory
-  local tmp_cache
-  tmp_cache=$(mktemp -d)
+  # Which cache filenames this run's images map to, so leftover entries from
+  # a previous run that weren't used this time can be told apart from ones
+  # still in use.
+  local -A wanted=()
+  local image
+  for image in $images; do
+    wanted["$(docker_cache_filename "$image")"]=1
+  done
 
-  # Move all cached images to the temporary directory
-  if [ -d "$DOCKER_CACHE_DIR" ]; then
-    mv "$DOCKER_CACHE_DIR"/*.tar "$tmp_cache/" 2>/dev/null || true
-  fi
+  # Drop cache entries for images that weren't used this run - keeping them
+  # around would just grow the cache.
+  local cached_file base
+  for cached_file in "$DOCKER_CACHE_DIR"/*.tar; do
+    [[ -e "$cached_file" ]] || continue
+    base="$(basename "$cached_file")"
+    [[ -n "${wanted[$base]:-}" ]] || rm -f "$cached_file"
+  done
 
+  # Save whichever used images aren't already cached, in parallel. Each save
+  # runs via `env -u BASH_ENV` rather than a plain `bash -c`: BASH_ENV makes
+  # every new bash process re-source bashrc.sh, which would recompute
+  # CACHE_DIRECTORY (and so DOCKER_CACHE_DIR) from *this* process's cwd -
+  # wrong here, since by teardown time the task script has usually cd'd into
+  # a project checkout. Stripping BASH_ENV skips that re-source entirely, so
+  # the already-correct inherited values are used as-is.
+  local cores
   cores=$(nproc --all)
-  export -f save_image
+  export -f save_image_if_missing
+  export -f docker_cache_filename
   export -f info
-  printf '%s\n' $images | xargs -P "$cores" -I{} bash -c 'save_image "$1" "$2"' _ {} "$tmp_cache"
-
-  rm -rf "$tmp_cache"
+  printf '%s\n' $images | xargs -P "$cores" -I{} env -u BASH_ENV bash -c 'save_image_if_missing "$1"' _ {}
 }
 
 function teardown_docker() {
@@ -100,8 +117,6 @@ function teardown_docker() {
 
 
   if [[ -n "$USED_IMAGES" ]]; then
-    # Images that were cached but not used this run stay behind in tmp_cache and
-    # are dropped there, so the cache still tracks what the build actually needs.
     info "Caching docker images"
     docker_save_cache $USED_IMAGES
   else

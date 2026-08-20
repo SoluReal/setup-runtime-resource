@@ -64,7 +64,7 @@ info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 WORK_ROOTFS="/tmp/work-rootfs.tar"
 
 DEBIAN_VERSION=trixie
-if [[ "$testcontainers_enabled" = "true" ]]; then
+if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
@@ -79,12 +79,18 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
-# auto picks "sudo" mode whenever euid=0, true even under fuse-only where
-# real mounts aren't actually available -- probe directly instead.
+# Prefer mmdebstrap's unshare mode over its own "auto" euid=0 heuristic
+# (which would pick real/root mode instead): it works under any Concourse
+# privileged mode that grants CAP_SYS_ADMIN + the mount/unshare/pivot_root
+# syscalls (full, fuse-only, and rootless privileged modes all currently
+# do). Only genuinely unprivileged tasks can't unshare a mount namespace at
+# all, so those fall back to fakechroot. Probe directly rather than
+# assuming from euid or a named mode, since what's actually granted is
+# what determines whether this works, not the mode's name.
 mount_probe_dir=$(mktemp -d)
-if mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
-  umount "$mount_probe_dir"
-  mmdebstrap_mode=auto
+if unshare --user --map-root-user --mount -- \
+    mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
+  mmdebstrap_mode=unshare
 else
   mmdebstrap_mode=fakechroot
 fi
