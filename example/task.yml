@@ -87,6 +87,16 @@ run:
       source ~/.bashrc
       java --version | assert_contains "openjdk 21"
 
+      # `jar` lives next to `java` in the sdkman candidate bin, so it only resolves
+      # when that dir is on PATH - not just when JAVA_HOME points at it.
+      command -v jar | assert_contains "/var/runtimes/sdkman/candidates/java/current/bin/jar"
+
+      mkdir -p jar-test/extracted
+      echo "hello from jar" > jar-test/hello.txt
+      (cd jar-test && jar cf hello.jar hello.txt)
+      (cd jar-test/extracted && jar xf ../hello.jar)
+      cat jar-test/extracted/hello.txt | assert_contains "hello from jar"
+
       mvn --version | assert_contains "Apache Maven 3.9.6"
       gradle --version | assert_contains "Gradle 8.5"
 
