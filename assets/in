@@ -139,7 +139,9 @@ rm $WORK_ROOTFS
 mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
+  info "Running custom hook..."
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
+  info "Custom hook finished"
 fi
 
 set_env "BASH_ENV=$RUNTIME_HOME/.bashrc"

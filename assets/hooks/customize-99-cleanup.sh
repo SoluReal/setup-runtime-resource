@@ -50,7 +50,12 @@ rm -rf $chroot_dir/var/lib/dpkg/*
 rm -rf $chroot_dir/etc/dpkg/*
 rm -rf $chroot_dir/usr/share/dpkg/*
 rm -rf $chroot_dir/usr/libexec/dpkg
-rm -rf $chroot_dir/etc/apt/*
+
+# Leave apt.conf.d/00mmdebstrap and apt.conf.d/99debconf in place: mmdebstrap
+# creates and unlinks these itself after all customize hooks run, and removing
+# them here makes it warn "failed to unlink ...: No such file or directory".
+find $chroot_dir/etc/apt -mindepth 1 -maxdepth 1 ! -name apt.conf.d -exec rm -rf {} +
+find $chroot_dir/etc/apt/apt.conf.d -mindepth 1 ! -name 00mmdebstrap ! -name 99debconf -exec rm -rf {} +
 
 # Don't need perl
 rm -rf $chroot_dir/usr/share/perl*
