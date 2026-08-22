@@ -66,30 +66,31 @@ from [concourse global resources](https://concourse-ci.org/global-resources.html
 
 The resource `source` configuration supports the following options:
 
-| Option                    | Description                                                                                                               | Default |
-|---------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
-| `dependencies`            | A list of Debian packages to install.                                                                                     | `[]`    |
-| `hook`                    | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
-| `verbose`                 | Enable verbose logging during rootfs creation.                                                                            | `false` |
-| `debug`                   | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
-| `sdkman.enabled`          | Enable SDKMAN.                                                                                                            | `false` |
-| `java.version`            | The default Java version to install via SDKMAN. Look at the candidate list for java.                                      | `""`    |
-| `java.extra_versions`     | A list of additional Java versions to install. Use `sdk use java <version>` in your code to switch to that version.       | `[]`    |
-| `maven.version`           | The Maven version to install via SDKMAN.                                                                                  | `""`    |
-| `maven.wrapper`           | Ensure Maven cache environment variables are set even if `maven.version` is not provided (for use with Maven wrapper).    | `false` |
-| `gradle.version`          | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
-| `gradle.wrapper`          | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
-| `pyenv.enabled`           | Enable pyenv.                                                                                                             | `false` |
-| `golang.version`          | The Go version to install.                                                                                                | `""`    |
-| `nvm.enabled`             | Enable NVM.                                                                                                               | `false` |
-| `nodejs.version`          | The Node.js version to install via NVM.                                                                                   | `""`    |
-| `nodejs.yarn.version`     | The Yarn version to install.                                                                                              | `""`    |
-| `nodejs.pnpm.version`     | The PNPM version to install.                                                                                              | `""`    |
-| `nodejs.bun.version`      | The bun version to install.                                                                                               | `""`    |
-| `testcontainers.enabled`  | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
-| `testcontainers.rootless` | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
-| `telemetry.disable`       | Disable telemetry (if any).                                                                                               | `false` |
-| `minimal_image`           | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
+| Option                        | Description                                                                                                               | Default |
+|-------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
+| `dependencies`                | A list of Debian packages to install.                                                                                     | `[]`    |
+| `hook`                        | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
+| `verbose`                     | Enable verbose logging during rootfs creation.                                                                            | `false` |
+| `debug`                       | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
+| `sdkman.enabled`              | Enable SDKMAN.                                                                                                            | `false` |
+| `java.version`                | The default Java version to install via SDKMAN. Look at the candidate list for java.                                      | `""`    |
+| `java.extra_versions`         | A list of additional Java versions to install. Use `sdk use java <version>` in your code to switch to that version.       | `[]`    |
+| `maven.version`               | The Maven version to install via SDKMAN.                                                                                  | `""`    |
+| `maven.wrapper`               | Ensure Maven cache environment variables are set even if `maven.version` is not provided (for use with Maven wrapper).    | `false` |
+| `gradle.version`              | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
+| `gradle.wrapper`              | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
+| `pyenv.enabled`               | Enable pyenv.                                                                                                             | `false` |
+| `golang.version`              | The Go version to install.                                                                                                | `""`    |
+| `nvm.enabled`                 | Enable NVM.                                                                                                               | `false` |
+| `nodejs.version`              | The Node.js version to install via NVM.                                                                                   | `""`    |
+| `nodejs.yarn.version`         | The Yarn version to install.                                                                                              | `""`    |
+| `nodejs.pnpm.version`         | The PNPM version to install.                                                                                              | `""`    |
+| `nodejs.bun.version`          | The bun version to install.                                                                                               | `""`    |
+| `testcontainers.enabled`      | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
+| `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
+| `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
+| `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
+| `dependency_download_retries` | Number of times to retry a failed dependency download (`curl`) during rootfs creation. `0` disables retries.              | `0`     |
 
 ## Tasks run as a non-root user
 
@@ -119,6 +120,20 @@ This can shave several hundred MB off the rootfs. It's opt-in and defaults to `f
 actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
 become the default in a future 1.x release once it's had more real-world exposure; until then, opt in
 explicitly if you want the smaller image.
+
+## Retries
+
+By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, pyenv, Go, and the
+Docker apt key) - a transient network error during rootfs creation fails the resource straight away. Set
+`dependency_download_retries` to have it retry those downloads:
+
+```yaml
+source:
+  dependency_download_retries: 3
+```
+
+This is implemented via curl's own `--retry` handling, which backs off exponentially between attempts (1s,
+2s, 4s, ..., capped at 10 minutes).
 
 ## Supported runtime options
 

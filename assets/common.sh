@@ -37,27 +37,46 @@ function info_spinner() {
   local pid=$3
   local delay=0.05
   local spin='|/-\'
+  local status
 
   if [ "$VERBOSE" = "true" ]; then
     log_info_hook "$progress_message"
-    wait $pid
+    wait "$pid"
+    status=$?
     printf "\n" >> $OUTPUT_FILE
     log_info_hook "$finished_message"
   else
     while kill -0 "$pid" 2>/dev/null; do
         for i in $(seq 0 3); do
-            printf "\r$Green[setup-runtime] %s [%c]$Color_Off" "$progress_message" "${spin:i:1}" >> $OUTPUT_FILE
+            printf "\r$Green[setup-runtime] %s [%c]$Color_Off" "$progress_message" "${spin:i:1}" >> "$OUTPUT_FILE"
             sleep $delay
         done
     done
+    wait "$pid"
+    status=$?
 
-    printf "\r$Green[setup-runtime] %s                                   $Color_Off\n" "$finished_message" >> $OUTPUT_FILE
+    printf "\r$Green[setup-runtime] %s                                   $Color_Off\n" "$finished_message" >> "$OUTPUT_FILE"
   fi
+
+  return $status
 }
 
 function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
 }
+
+# Runs curl with retries configured via the `dependency_download_retries`.
+function curl_retry() {
+  local max_retries="${dependency_download_retries:-0}"
+  local retry_args=()
+
+  if [[ "$max_retries" -gt 0 ]]; then
+    retry_args=( --retry "$max_retries" --retry-all-errors )
+  fi
+
+  curl "${retry_args[@]}" "$@"
+}
+export -f curl_retry
 
 chroot_exec() {
     local rootfs="${1}"

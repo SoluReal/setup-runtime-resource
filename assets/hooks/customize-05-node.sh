@@ -49,11 +49,16 @@ if [ -n "$nodejs_version" ]; then
   fi
 
   if [ -n "$bun_version" ]; then
-    if [ "$bun_version" = "latest" ]; then
-        curl -fsSL https://bun.sh/install | BUN_INSTALL="$chroot_dir/usr/local" bash &
-    else
-        curl -fsSL https://bun.sh/install | BUN_INSTALL="$chroot_dir/usr/local" bash -s -- "bun-v${bun_version}" &
-    fi
+    (
+      installer=$(mktemp)
+      curl_retry -fsSL https://bun.sh/install -o "$installer"
+      if [ "$bun_version" = "latest" ]; then
+        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer"
+      else
+        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer" -s -- "bun-v${bun_version}"
+      fi
+      rm -f "$installer"
+    ) &
     info_spinner "Installing bun $bun_version" "bun $bun_version installed" $!
     add_metadata "bun" "$bun_version"
   fi

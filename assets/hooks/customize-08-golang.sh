@@ -19,7 +19,12 @@ if [[ -n "$golang_version" ]]; then
 
   info "Installing Go $golang_version for $goarch"
 
-  curl -fsSL "https://go.dev/dl/go${golang_version}.linux-${goarch}.tar.gz" | tar -C "$chroot_dir$RUNTIME_DIR" -xz &
+  (
+    archive=$(mktemp)
+    curl_retry -fsSL "https://go.dev/dl/go${golang_version}.linux-${goarch}.tar.gz" -o "$archive"
+    tar -xzf "$archive" -C "$chroot_dir$RUNTIME_DIR"
+    rm -f "$archive"
+  ) &
   info_spinner "Downloading and extracting Go" "Go installed" $!
 
   # Go extracts to a directory named 'go', we want it in GOLANG_RUNTIME_DIR

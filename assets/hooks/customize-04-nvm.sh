@@ -9,7 +9,12 @@ if [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]]; then
   export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
   mkdir -p "$NVM_DIR"
 
-  PROFILE=/dev/null bash -c 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash' &
+  (
+    installer=$(mktemp)
+    curl_retry -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh -o "$installer"
+    PROFILE=/dev/null bash "$installer"
+    rm -f "$installer"
+  ) &
   info_spinner "Installing nvm (node version manager)" "nvm installed (node version manager)" $!
 
   echo "export NVM_DIR=$NVM_RUNTIME_DIR; source \$NVM_DIR/nvm.sh" >> $chroot_dir$RUNTIME_HOME/.bashrc

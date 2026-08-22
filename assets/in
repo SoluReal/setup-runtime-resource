@@ -45,6 +45,8 @@ export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
 export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
 export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
 
+export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
+
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
 export DEBUG=$(jq -r '(.source.debug // "false")' <<< "$payload")
@@ -66,7 +68,7 @@ WORK_ROOTFS="/tmp/work-rootfs.tar"
 DEBIAN_VERSION=trixie
 if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  curl_retry -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
 
   # Add the repository to Apt sources:
