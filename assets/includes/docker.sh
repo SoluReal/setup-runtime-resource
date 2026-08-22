@@ -1,19 +1,22 @@
 #!/bin/bash
 
-source "$RUNTIME_DIR/docker/docker-functions.sh"
+if [[ "${TESTCONTAINERS_ROOTLESS:-false}" = "true" ]]; then
+  source "$RUNTIME_DIR/docker/podman-functions.sh"
+else
+  source "$RUNTIME_DIR/docker/docker-functions.sh"
+fi
 source "$RUNTIME_DIR/docker/docker-cache.sh"
 
+export CONTAINER_RUNTIME_PID_FILE="/tmp/container-runtime.pid"
+export CONTAINER_RUNTIME_LOG_FILE="/tmp/container-runtime.log"
+
 function start_docker_daemon() {
-  # Waits DOCKERD_TIMEOUT seconds for startup (default: 60)
-  DOCKERD_TIMEOUT="${DOCKERD_TIMEOUT:-60}"
+  # Waits CONTAINER_RUNTIME_TIMEOUT seconds for startup (default: 60).
+  CONTAINER_RUNTIME_TIMEOUT="${CONTAINER_RUNTIME_TIMEOUT:-60}"
   # Accepts optional DOCKER_OPTS (default: --data-root /scratch/docker)
   DOCKER_OPTS="${DOCKER_OPTS:-}"
 
   export DOCKER_OPTS
-
-  # Constants
-  export DOCKERD_PID_FILE="/tmp/docker.pid"
-  export DOCKERD_LOG_FILE="/tmp/docker.log"
 
   if grep -q cgroup2 /proc/filesystems; then
     cgroups_version='v2'
@@ -25,7 +28,6 @@ function start_docker_daemon() {
 
   start_docker
   await_docker
-  date +%s > /tmp/docker-start
 }
 
 function restore_docker_cache() {
@@ -35,6 +37,10 @@ function restore_docker_cache() {
   fi
 }
 
-register_initialize_callback start_docker_daemon
-register_initialize_callback restore_docker_cache
+function initialize_docker() {
+  start_docker_daemon
+  restore_docker_cache
+}
+
+register_initialize_callback initialize_docker
 register_teardown_callback teardown_docker

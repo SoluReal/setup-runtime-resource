@@ -39,7 +39,8 @@ run:
       
       ls -lah cache
       
-      ls -lah /var/runtimes/docker
+      docker images || true
+      
       echo $PATH | assert_contains "/var/runtimes/nvm/versions/node/v"
       echo $PATH | assert_contains "/var/runtimes/sdkman/candidates/java/current/bin"
       
@@ -55,8 +56,6 @@ run:
       yarn --version | assert_contains "4.10.2"
       pnpm --version | assert_contains "10.17.1"
       npm --version | assert_contains "11"
-      
-      docker --version | assert_contains "Docker version 29"
       
       echo "FROM alpine" > Dockerfile
       docker build -t runtime-test .
@@ -88,6 +87,10 @@ run:
       source ~/.bashrc
       java --version | assert_contains "openjdk 21"
 
+      # `jar` lives next to `java` in the sdkman candidate bin, so it only resolves
+      # when that dir is on PATH - not just when JAVA_HOME points at it.
+      command -v jar | assert_contains "/var/runtimes/sdkman/candidates/java/current/bin/jar"
+
       mvn --version | assert_contains "Apache Maven 3.9.6"
       gradle --version | assert_contains "Gradle 8.5"
 
@@ -98,10 +101,61 @@ run:
       go version | assert_contains "go version go1.22.1"
       
       # Check gradle.properties persistence
-      cat /root/.gradle/gradle.properties | assert_contains "org.gradle.caching=true"
+      cat "$RUNTIME_HOME/.gradle/gradle.properties" | assert_contains "org.gradle.caching=true"
 
       # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
       bash -c "echo hi" | assert_not_contains "Saving"
       
       # Verify that nvm works in bash -c
       bash -c "nvm --version" | assert_contains "0.40.3"
+
+      echo "=== fetching a real Spring Boot + Testcontainers project ==="
+      curl -fsSL -o starter.tgz \
+        "https://start.spring.io/starter.tgz?type=gradle-project-kotlin&language=kotlin&platformVersion=4.1.0&packaging=jar&configurationFileFormat=properties&javaVersion=25&groupId=com.example&artifactId=demo&packageName=com.example.demo&dependencies=testcontainers"
+      mkdir -p demo
+      tar xzf starter.tgz -C demo --warning=no-unknown-keyword
+      cd demo
+
+      cat > src/test/kotlin/com/example/demo/RedisContainerTest.kt <<'KOTLIN'
+      package com.example.demo
+
+      import org.junit.jupiter.api.Assertions.assertEquals
+      import org.junit.jupiter.api.Assertions.assertTrue
+      import org.junit.jupiter.api.Test
+      import org.testcontainers.containers.GenericContainer
+      import org.testcontainers.containers.wait.strategy.Wait
+      import org.testcontainers.junit.jupiter.Container
+      import org.testcontainers.junit.jupiter.Testcontainers
+      import java.net.Socket
+
+      @Testcontainers
+      class RedisContainerTest {
+
+          companion object {
+              @Container
+              @JvmStatic
+              val redis: GenericContainer<*> = GenericContainer("redis:7-alpine")
+                  .withExposedPorts(6379)
+                  .waitingFor(Wait.forListeningPort())
+          }
+
+          @Test
+          fun `redis container starts and answers PING`() {
+              assertTrue(redis.isRunning)
+
+              Socket(redis.host, redis.getMappedPort(6379)).use { socket ->
+                  socket.getOutputStream().write("PING\r\n".toByteArray())
+                  socket.getOutputStream().flush()
+
+                  val reply = socket.getInputStream()
+                      .readNBytes(7)
+                      .toString(Charsets.UTF_8)
+
+                  assertEquals("+PONG\r\n", reply)
+              }
+          }
+      }
+      KOTLIN
+
+      echo "=== running the test suite ==="
+      ./gradlew clean test --rerun --info

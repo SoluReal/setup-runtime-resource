@@ -25,6 +25,7 @@ verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
 telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
 
 export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
+export testcontainers_rootless=$(jq -r '(.source.testcontainers.rootless // "false")' <<< "$payload")
 export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
 export sdkman_enabled=$(jq -r '(.source.sdkman.enabled // "false")' <<< "$payload")
 export extra_java_versions=$(jq -r '(.source.java.extra_versions // [])' <<< "$payload")
@@ -42,6 +43,9 @@ export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payloa
 export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload")
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
 export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
+export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
+
+export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
 
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
@@ -62,9 +66,9 @@ info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 WORK_ROOTFS="/tmp/work-rootfs.tar"
 
 DEBIAN_VERSION=trixie
-if [[ "$testcontainers_enabled" = "true" ]]; then
+if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  curl_retry -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
 
   # Add the repository to Apt sources:
@@ -77,16 +81,18 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
-# auto picks "sudo" mode whenever euid=0, true even under fuse-only where
-# real mounts aren't actually available -- probe directly instead.
+# Prefer mmdebstrap's unshare mode over its own "auto" euid=0 heuristic which falls back to root.
+# In case unshare doesn't work we fallback to fakechroot.
 mount_probe_dir=$(mktemp -d)
-if mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
-  umount "$mount_probe_dir"
-  mmdebstrap_mode=auto
+if unshare --user --map-root-user --mount -- \
+    mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
+  mmdebstrap_mode=unshare
 else
   mmdebstrap_mode=fakechroot
 fi
 rmdir "$mount_probe_dir"
+
+info "mmdebstrap mode: $mmdebstrap_mode"
 
 args=()
 
@@ -126,20 +132,37 @@ kill $INFO_LOGGER_PID
 mkdir -p "$dest/rootfs/"
 tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
 tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
+
+# /tmp is stripped from the tarball above; recreate it writable for the
+# non-root task user.
+mkdir -p "$dest/rootfs/tmp"
+chmod 1777 "$dest/rootfs/tmp"
 rm $WORK_ROOTFS
 mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
+  info "Running custom hook..."
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
+  info "Custom hook finished"
 fi
 
-set_env "BASH_ENV=/root/.bashrc"
+set_env "BASH_ENV=$RUNTIME_HOME/.bashrc"
+set_env "HOME=$RUNTIME_HOME"
+
+# Tasks run as the runtime user, except non-rootless testcontainers: dockerd
+# needs real root and the runtime user has no way to escalate.
+task_user="$RUNTIME_USER"
+if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
+  task_user=""
+fi
+
+add_metadata "user" "$task_user"
 
 # Define env vars to load the bash profile in non interactive shells
 # Add cache environment variables so caching is straightforward
 jq -n "{
   env: [$(sed 's/.*/\"&\"/' /tmp/env_vars | tr '\n' ',' | sed 's/,$//')],
-  user: \"\"}
+  user: \"$task_user\"}
 " > "$dest/metadata.json"
 
 log_on_error cat "$dest/metadata.json"
@@ -159,12 +182,16 @@ for f in /tmp/traps_*; do
   if [[ \"\$current_pid\" = \"\$main_pid\" ]]; then
     $cmds
   fi
-}" >> "$dest/rootfs/root/.bashrc"
-    echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs/root/.bashrc"
+}" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
+    echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
   fi
 done
 
-cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs/root/.bashrc"
+cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
+
+# The build ran as root. The task user needs to write to both: sdk/nvm/pyenv
+# install into $RUNTIME_DIR at task time, gradle/maven write under $HOME.
+chown -R "$RUNTIME_UID:$RUNTIME_UID" "$dest/rootfs$RUNTIME_HOME" "$dest/rootfs$RUNTIME_DIR"
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"
 

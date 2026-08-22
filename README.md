@@ -2,9 +2,9 @@
 
 A [Concourse](https://github.com/concourse/concourse) resource to setup a runtime environment for your tasks. This
 resource is inspired by the setup github actions like [actions/setup-java](https://github.com/actions/setup-java)
-and [actions/setup-node](https://github.com/actions/setup-node)
+and [actions/setup-node](https://github.com/actions/setup-node).
 
-It leverages `mmdebstrap` and `fakechroot` to create a lightweight Debian rootfs with the tools you need without
+It leverages `mmdebstrap` to create a lightweight Debian rootfs with the tools you need without
 requiring root. Due to concourse resource caching, the rootfs is only created once and reused for subsequent tasks.
 
 Previously teams created their own images, pushed them to a registry and used them in their pipelines. This resource
@@ -66,28 +66,74 @@ from [concourse global resources](https://concourse-ci.org/global-resources.html
 
 The resource `source` configuration supports the following options:
 
-| Option                   | Description                                                                                                               | Default |
-|--------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
-| `dependencies`           | A list of Debian packages to install.                                                                                     | `[]`    |
-| `hook`                   | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
-| `verbose`                | Enable verbose logging during rootfs creation.                                                                            | `false` |
-| `debug`                  | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
-| `sdkman.enabled`         | Enable SDKMAN.                                                                                                            | `false` |
-| `java.version`           | The default Java version to install via SDKMAN. Look at the candidate list for java.                                      | `""`    |
-| `java.extra_versions`    | A list of additional Java versions to install. Use `sdk use java <version>` in your code to switch to that version.       | `[]`    |
-| `maven.version`          | The Maven version to install via SDKMAN.                                                                                  | `""`    |
-| `maven.wrapper`          | Ensure Maven cache environment variables are set even if `maven.version` is not provided (for use with Maven wrapper).    | `false` |
-| `gradle.version`         | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
-| `gradle.wrapper`         | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
-| `pyenv.enabled`          | Enable pyenv.                                                                                                             | `false` |
-| `golang.version`         | The Go version to install.                                                                                                | `""`    |
-| `nvm.enabled`            | Enable NVM.                                                                                                               | `false` |
-| `nodejs.version`         | The Node.js version to install via NVM.                                                                                   | `""`    |
-| `nodejs.yarn.version`    | The Yarn version to install.                                                                                              | `""`    |
-| `nodejs.pnpm.version`    | The PNPM version to install.                                                                                              | `""`    |
-| `nodejs.bun.version`     | The bun version to install.                                                                                               | `""`    |
-| `testcontainers.enabled` | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
-| `telemetry.disable`      | Disable telemetry (if any).                                                                                               | `false` |
+| Option                        | Description                                                                                                               | Default |
+|-------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
+| `dependencies`                | A list of Debian packages to install.                                                                                     | `[]`    |
+| `hook`                        | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
+| `verbose`                     | Enable verbose logging during rootfs creation.                                                                            | `false` |
+| `debug`                       | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
+| `sdkman.enabled`              | Enable SDKMAN.                                                                                                            | `false` |
+| `java.version`                | The default Java version to install via SDKMAN. Look at the candidate list for java.                                      | `""`    |
+| `java.extra_versions`         | A list of additional Java versions to install. Use `sdk use java <version>` in your code to switch to that version.       | `[]`    |
+| `maven.version`               | The Maven version to install via SDKMAN.                                                                                  | `""`    |
+| `maven.wrapper`               | Ensure Maven cache environment variables are set even if `maven.version` is not provided (for use with Maven wrapper).    | `false` |
+| `gradle.version`              | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
+| `gradle.wrapper`              | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
+| `pyenv.enabled`               | Enable pyenv.                                                                                                             | `false` |
+| `golang.version`              | The Go version to install.                                                                                                | `""`    |
+| `nvm.enabled`                 | Enable NVM.                                                                                                               | `false` |
+| `nodejs.version`              | The Node.js version to install via NVM.                                                                                   | `""`    |
+| `nodejs.yarn.version`         | The Yarn version to install.                                                                                              | `""`    |
+| `nodejs.pnpm.version`         | The PNPM version to install.                                                                                              | `""`    |
+| `nodejs.bun.version`          | The bun version to install.                                                                                               | `""`    |
+| `testcontainers.enabled`      | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
+| `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
+| `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
+| `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
+| `dependency_download_retries` | Number of times to retry a failed dependency download (`curl`) during rootfs creation. `0` disables retries.              | `0`     |
+
+## Tasks run as a non-root user
+
+Tasks using this resource run as the unprivileged `runtime` user (uid 1000), not as `root`. `HOME` is
+`/home/runtime`, and the runtimes installed under `/var/runtimes` are owned by that user so `sdk install`,
+`nvm install` and pyenv still work at task time. Concourse chowns input, output and cache volumes to the task user
+([concourse/concourse#9593](https://github.com/concourse/concourse/pull/9593), Concourse 8.3.0+), so steps around your
+task keep working unchanged.
+
+The one exception is `testcontainers.enabled: true` with `testcontainers.rootless: false`: `dockerd` needs real root, so
+that combination still runs the task as `root`. Prefer
+[rootless testcontainers](#rootless-testcontainers) instead.
+
+## Minimal image
+
+When `minimal_image: true` is set, the resource strips content from the rootfs that isn't needed to compile or
+run code, but is not safe to remove unconditionally for every user:
+
+- Every installed JDK's `lib/jmods` (only used by the `jlink` tool to build a custom trimmed Java runtime) and
+  `lib/src.zip` (the JDK's own source archive, used only by IDEs for source lookup/hover-docs).
+- Go's own `test/` (the Go compiler's test suite) and `api/` (API-compatibility check data) directories - not
+  used by `go build`, `go test`, or `go vet` on your code.
+- Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
+  `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
+
+This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
+actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
+become the default in a future 1.x release once it's had more real-world exposure; until then, opt in
+explicitly if you want the smaller image.
+
+## Retries
+
+By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, pyenv, Go, and the
+Docker apt key) - a transient network error during rootfs creation fails the resource straight away. Set
+`dependency_download_retries` to have it retry those downloads:
+
+```yaml
+source:
+  dependency_download_retries: 3
+```
+
+This is implemented via curl's own `--retry` handling, which backs off exponentially between attempts (1s,
+2s, 4s, ..., capped at 10 minutes).
 
 ## Supported runtime options
 
@@ -279,8 +325,7 @@ as possible to let it work with concourse caching.
 Please open an issue if your package manager is not supported or not working for your usecase.
 
 You can run out of disk space pretty easily when caching aggressively without cache pruning. Although this resource
-tries
-to prune the cache automatically, it might not work in all cases.
+tries to prune the cache automatically, it might not work in all cases.
 
 Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent the cache from growing too large.
 
@@ -289,7 +334,34 @@ Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent
 Docker images that are in your job will be automatically cached. This prevents the image from being downloaded every
 time your job runs when using e.g. [testcontainers](https://testcontainers.com/).
 
-## Contributing
+## Rootless testcontainers
+
+With `testcontainers.rootless: true`, [podman](https://podman.io/) is used instead of `dockerd`, running as a real
+non-root user (`runtime`) instead of root. A `docker` command is still provided (via `podman-docker`) so existing
+`docker build`/`docker run` calls and Testcontainers itself keep working unmodified.
+
+You still need `privileged: true` on the task. However, you can run your concourse worker with
+`--containerd-privileged-mode=fuse-only` to limit the privileges your tasks run with.
+See [Concourse security hardening docs](https://concourse-ci.org/docs/operation/security-hardening/) for more info.
+
+### Worker requirements
+
+**The host must allow unprivileged user namespaces.** Rootless podman creates user namespaces, which on Ubuntu and other
+AppArmor kernels is blocked for non-root processes by the `kernel.apparmor_restrict_unprivileged_userns`
+sysctl. If your host uses Apparmor you need to disable it or run with a custom profile. To disable:
+
+```
+sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+```
+
+If it is still enabled, podman fails to start and the task aborts with podman's own logs.
+
+Note, only Concourse >8.3.0 will work with rootless + fuse-only mode.
+
+### Limitations of rootless containers
+
+**Containers cannot bind ports below 1024 internally.**
+**[Ryuk]([https://github.com/testcontainers/moby-ryuk](https://podman-desktop.io/tutorial/testcontainers-with-podman)) doesn't work with rootless podman**
 
 Contributions are welcome! Please follow these steps to contribute:
 

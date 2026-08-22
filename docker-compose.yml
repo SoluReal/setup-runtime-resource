@@ -73,6 +73,9 @@ services:
       # allow to reach the registry container
       CONCOURSE_CONTAINERD_ALLOW_HOST_ACCESS: "true"
       CONCOURSE_CONTAINERD_DNS_PROXY_ENABLE: "true"
+      # full|fuse-only|ignore - how many privileges `privileged: true` tasks get.
+      # Override via CONCOURSE_CONTAINERD_PRIVILEGED_MODE=fuse-only ./build-and-test.sh
+      CONCOURSE_CONTAINERD_PRIVILEGED_MODE: "${CONCOURSE_CONTAINERD_PRIVILEGED_MODE:-full}"
     extra_hosts:
       - "apt-cacher:host-gateway"
       - "git-server:host-gateway"

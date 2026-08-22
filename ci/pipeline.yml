@@ -48,6 +48,17 @@ resources:
     source:
       ((SETUP_RUNTIME_SOURCE))
 
+  - name: pr-source
+    type: github-pr
+    icon: source-pull
+    check_every: never
+    webhook_token: ((github-webtoken))
+    source:
+      repo: solureal/setup-runtime-resource
+      access_token: ((github-apitoken))
+      private_key: ((github-private-key))
+      base_branch: master
+
 jobs:
   - name: build
     plan:
@@ -88,8 +99,60 @@ jobs:
       - task: test-image
         image: test-setup-runtime
         privileged: true
-        tags: [dind]
         file: repo/example/task.yml
+
+  - name: pr-build-and-test
+    serial: true
+    plan:
+      - get: pr-source
+        trigger: false # don't run on every PR created.
+        params: { depth: 1 }
+      - put: set-pending-status
+        resource: pr-source
+        params:
+          path: pr-source
+          status: pending
+      - task: build
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+          params:
+            IMAGE_PLATFORM: linux/arm64 # ,linux/amd64 disabled for speed now.
+#            OUTPUT_OCI: true
+            UNPACK_ROOTFS: true
+          caches:
+            - path: cache
+          inputs:
+            - name: pr-source
+              path: .
+          outputs:
+            - name: image
+          run:
+            path: build
+      - put: setup-runtime-resource-dev
+        params:
+          image: image/image.tar
+      - get: test-setup-runtime
+      - task: test-image
+        image: test-setup-runtime
+        privileged: true
+        file: pr-source/example/task.yml
+    on_success:
+      put: set-build-success-status
+      resource: pr-source
+      params:
+        path: pr-source
+        status: success
+    on_failure:
+      put: set-failure-status
+      resource: pr-source
+      params:
+        path: pr-source
+        status: failure
 
   - name: publish-major
     plan:
@@ -171,3 +234,10 @@ resource_types:
     source:
       repository: solureal/setup-runtime-resource
       tag: dev
+
+  - name: github-pr
+    type: registry-image
+    source:
+      repository: ((registry-url))/dockerhubproxy/github-pr
+      username: ((registry-username))
+      password: ((registry-password))

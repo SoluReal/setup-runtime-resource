@@ -4,71 +4,140 @@ export DOCKER_CACHE_DIR="$CACHE_DIRECTORY/docker"
 
 function docker_load_cache() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
-    if ls "$DOCKER_CACHE_DIR"/*.tar.lz4 >/dev/null 2>&1; then
+    if ls "$DOCKER_CACHE_DIR"/*.tar >/dev/null 2>&1; then
       cores=$(nproc --all)
 
-      printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar.lz4 | \
-        xargs -P "$cores" -I{} bash -c 'lz4 -dc "$1" | docker load' _ {}
+      export -f load_cached_image
+      export -f error
+      printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar | \
+        xargs -P "$cores" -I{} env -u BASH_ENV bash -c 'load_cached_image "$1"' _ {}
     fi
   fi
 }
 
-function save_image() {
-  image=$1
-  tmp_cache=$2
+# Load a single cached image tar, discarding it if it turns out to be corrupt.
+function load_cached_image() {
+  local cached_file="$1"
+
+  if ! docker load < "$cached_file" >/dev/null; then
+    error "Cached image $(basename "$cached_file") is corrupt, discarding it"
+    rm -f "$cached_file"
+  fi
+}
+
+# Cache filename for an image reference, e.g.
+# docker.io/library/redis:7-alpine -> docker.io-library-redis_7-alpine.tar
+function docker_cache_filename() {
+  local image="$1"
 
   # If no tag is specified, assume :latest
   if [[ "$image" != *:* ]]; then
     image="$image:latest"
   fi
 
-  safe_image="${image//\//-}"
+  local safe_image="${image//\//-}"
   safe_image="${safe_image//:/_}"
-  local cached_file="$tmp_cache/$safe_image.tar.lz4"
+  echo "$safe_image.tar"
+}
+
+# Save one image to the cache, but only if it isn't already there.
+function save_image_if_missing() {
+  local image="$1"
+  local cached_file="$DOCKER_CACHE_DIR/$(docker_cache_filename "$image")"
 
   if [ -f "$cached_file" ]; then
-    # Move back from temp dir to cache dir since that is faster than exporting again
-    mv "$cached_file" "$DOCKER_CACHE_DIR"
+    return 0
+  fi
+
+  info "Saving $image"
+
+  # Save to a temp file and rename into place only on success, so a build
+  # that gets cancelled mid-save doesn't leave a corrupt tar in cache.
+  local tmp_file="$cached_file.tmp"
+  if docker save "$image" > "$tmp_file"; then
+    mv "$tmp_file" "$cached_file"
   else
-    info "Saving $image"
-    mkdir -p "$DOCKER_CACHE_DIR"
-    # Save the image if not in cache
-    docker save "$image" | lz4 > "$DOCKER_CACHE_DIR/$safe_image.tar.lz4"
+    rm -f "$tmp_file"
   fi
 }
 
 function docker_save_cache() {
   local images="$*"
 
-  # Ensure cache directory exists
-  if [ ! -d "$DOCKER_CACHE_DIR" ]; then
-    mkdir -p "$DOCKER_CACHE_DIR"
-  fi
+  mkdir -p "$DOCKER_CACHE_DIR"
 
-  # Create a temporary directory
-  local tmp_cache
-  tmp_cache=$(mktemp -d)
+  # Drop leftover partial saves from a run that was cancelled.
+  rm -f "$DOCKER_CACHE_DIR"/*.tmp
 
-  # Move all cached images to the temporary directory
-  if [ -d "$DOCKER_CACHE_DIR" ]; then
-    mv "$DOCKER_CACHE_DIR"/*.tar.lz4 "$tmp_cache/" 2>/dev/null || true
-  fi
+  # Which cache filenames this run's images map to, so leftover entries from
+  # a previous run that weren't used this time can be told apart from ones
+  # still in use.
+  local -A wanted=()
+  local image
+  for image in $images; do
+    wanted["$(docker_cache_filename "$image")"]=1
+  done
 
+  # Drop cache entries for images that weren't used this run - keeping them
+  # around would just grow the cache.
+  local cached_file base
+  for cached_file in "$DOCKER_CACHE_DIR"/*.tar; do
+    [[ -e "$cached_file" ]] || continue
+    base="$(basename "$cached_file")"
+    [[ -n "${wanted[$base]:-}" ]] || rm -f "$cached_file"
+  done
+
+  # Save whichever used images aren't already cached, in parallel. Each save
+  # runs via `env -u BASH_ENV` rather than a plain `bash -c`: BASH_ENV makes
+  # every new bash process re-source bashrc.sh, which would recompute
+  # CACHE_DIRECTORY (and so DOCKER_CACHE_DIR) from *this* process's cwd -
+  # wrong here, since by teardown time the task script has usually cd'd into
+  # a project checkout. Stripping BASH_ENV skips that re-source entirely, so
+  # the already-correct inherited values are used as-is.
+  local cores
   cores=$(nproc --all)
-  export -f save_image
+  export -f save_image_if_missing
+  export -f docker_cache_filename
   export -f info
-  printf '%s\n' $images | xargs -P "$cores" -I{} bash -c 'save_image "$1" "$2"' _ {} "$tmp_cache"
-
-  rm -rf "$tmp_cache"
+  printf '%s\n' $images | xargs -P "$cores" -I{} env -u BASH_ENV bash -c 'save_image_if_missing "$1"' _ {}
 }
 
 function teardown_docker() {
   set -e
-  DOCKER_END_DATE=$(date +%s)
 
-  USED_IMAGES=$(docker events --since "$(cat /tmp/docker-start)" --until $DOCKER_END_DATE --format '{{json .}}' \
-    | jq -r 'select(.Type=="container") | select(.Action=="start") | .Actor.Attributes.image' \
+  local events events_err
+  events_err=$(mktemp)
+
+  # container_events is runtime-specific (see docker-functions.sh and
+  # podman-functions.sh); the two runtimes need different flags to produce a
+  # bounded, non-streaming result.
+  #
+  # Never discard stderr here: the runtime reports why it produced no events on
+  # that channel, and swallowing it turns a diagnosable failure into a silent one.
+  if ! events=$(container_events 2>"$events_err"); then
+    # Without the event log there is no way to tell which images were used.
+    # Keep whatever is cached rather than falling through to the cleanup below,
+    # which would throw away a perfectly good cache over a transient failure.
+    info "Could not read container events; leaving the image cache untouched"
+    cat "$events_err" >&2
+    rm -f "$events_err"
+    stop_docker
+    return
+  fi
+
+  if [[ -s "$events_err" ]]; then
+    info "reading container events reported: $(cat "$events_err")"
+  fi
+  rm -f "$events_err"
+
+  # docker and podman emit different event schemas: docker names the field
+  # .Action and nests the image under .Actor.Attributes.image, while podman uses
+  # .Status with .Image at the top level. Accept either, otherwise this silently
+  # matches nothing on one of the two runtimes and nothing is ever cached.
+  USED_IMAGES=$(printf '%s' "$events" \
+    | jq -r 'select(.Type=="container") | select((.Action // .Status) == "start") | (.Actor.Attributes.image // .Image)' \
     | sort | uniq | xargs)
+
 
   if [[ -n "$USED_IMAGES" ]]; then
     info "Caching docker images"

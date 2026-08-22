@@ -3,13 +3,17 @@
 set -eo pipefail
 
 chroot_dir="$1"
-source $ROOT_DIR/common.sh
+source "$ROOT_DIR/common.sh"
 
 export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
 
 function sdkman_install() {
-  curl -s 'https://get.sdkman.io?ci=true&rcupdate=false' | bash
-  echo "export SDKMAN_DIR=$SDKMAN_RUNTIME_DIR; source $SDKMAN_RUNTIME_DIR/bin/sdkman-init.sh" >> $chroot_dir/root/.bashrc
+  local installer
+  installer=$(mktemp)
+  curl_retry -s 'https://get.sdkman.io?ci=true&rcupdate=false' -o "$installer"
+  bash "$installer"
+  rm -f "$installer"
+  echo "export SDKMAN_DIR=$SDKMAN_RUNTIME_DIR; source $SDKMAN_RUNTIME_DIR/bin/sdkman-init.sh" >> $chroot_dir$RUNTIME_HOME/.bashrc
   mkdir -p  "$SDKMAN_DIR/etc"
   echo "sdkman_selfupdate_feature=false" > "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_answer=true" >> "$SDKMAN_DIR/etc/config"

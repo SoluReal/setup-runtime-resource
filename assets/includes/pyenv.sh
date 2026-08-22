@@ -11,8 +11,7 @@ function prepare_pyenv_cache() {
 function restore_pyenv_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
     info "Restoring pyenv versions from cache..."
-    mkdir -p "$RUNTIME_DIR/pyenv"
-    tar -I lz4 -xf "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" -C "$RUNTIME_DIR/pyenv"
+    restore_lz4_cache "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" "$RUNTIME_DIR/pyenv"
   fi
 }
 

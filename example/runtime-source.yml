@@ -31,6 +31,9 @@ nodejs:
     version: latest
 testcontainers:
   enabled: true
+  rootless: true
 telemetry:
   disable: true
 verbose: true
+minimal_image: true
+dependency_download_retries: 3

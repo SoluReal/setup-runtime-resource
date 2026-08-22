@@ -19,6 +19,12 @@ if [ -n "$nodejs_version" ]; then
   add_metadata "node" "$(nvm current)"
   npm uninstall -g yarn pnpm || true
 
+  if [[ "$minimal_image" = "true" ]]; then
+    # include/ (V8 + Node headers) is only needed by node-gyp to compile native
+    # addons, not to run node/npm/yarn/pnpm - strip it to shrink the image.
+    rm -rf "$NVM_DIR/versions/node/$(nvm current)/include"
+  fi
+
   export COREPACK_HOME="$chroot_dir/$COREPACK_HOME_DIR"
   if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
     # Starting with nodejs 25 corepack is no longer bundled with nodejs.
@@ -43,11 +49,16 @@ if [ -n "$nodejs_version" ]; then
   fi
 
   if [ -n "$bun_version" ]; then
-    if [ "$bun_version" = "latest" ]; then
-        curl -fsSL https://bun.sh/install | BUN_INSTALL="$chroot_dir/usr/local" bash &
-    else
-        curl -fsSL https://bun.sh/install | BUN_INSTALL="$chroot_dir/usr/local" bash -s -- "bun-v${bun_version}" &
-    fi
+    (
+      installer=$(mktemp)
+      curl_retry -fsSL https://bun.sh/install -o "$installer"
+      if [ "$bun_version" = "latest" ]; then
+        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer"
+      else
+        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer" -s -- "bun-v${bun_version}"
+      fi
+      rm -f "$installer"
+    ) &
     info_spinner "Installing bun $bun_version" "bun $bun_version installed" $!
     add_metadata "bun" "$bun_version"
   fi
