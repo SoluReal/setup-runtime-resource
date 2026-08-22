@@ -11,8 +11,7 @@ function prepare_nvm_cache() {
 function restore_nvm_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/nvm/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
     info "Restoring nvm versions from cache..."
-    mkdir -p "$RUNTIME_DIR/nvm"
-    tar -I lz4 -xf "$CACHE_DIRECTORY/nvm/archive.tar.lz4" -C "$RUNTIME_DIR/nvm"
+    restore_lz4_cache "$CACHE_DIRECTORY/nvm/archive.tar.lz4" "$RUNTIME_DIR/nvm"
   fi
 }
 

@@ -63,8 +63,8 @@ chroot_exec() {
     local rootfs="${1}"
     shift
     local cmd="$*"
-    # Use fakechroot to simulate chroot
-    fakechroot chroot "$rootfs" /bin/bash -lc "source $RUNTIME_HOME/.bashrc; $cmd"
+    # Use fakechroot to simulate chroot.
+    fakechroot chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
 }
 
 function set_env() {

@@ -31,6 +31,75 @@ function register_initialize_callback() {
   ON_INITIALIZE_CALLBACKS+=("$1")
 }
 
+# Extract an lz4 cache tar, discarding it if it turns out to be corrupt so a
+# broken cache aborts caching for that runtime instead of the whole task.
+function restore_lz4_cache() {
+  local archive="$1"
+  local dest_dir="$2"
+  shift 2
+
+  mkdir -p "$dest_dir"
+  if ! tar -I lz4 -xf "$archive" -C "$dest_dir" "$@"; then
+    error "Cached archive $(basename "$archive") is corrupt, discarding it"
+    rm -f "$archive"
+  fi
+}
+
+# Empty $CACHE_DIRECTORY while keeping the directory itself, since Concourse
+# owns the mount point.
+function clear_cache_directory() {
+  if [[ ! -d "$CACHE_DIRECTORY" ]]; then
+    return 0
+  fi
+
+  # Don't fail on this, you can receive Device or resource busy
+  find "$CACHE_DIRECTORY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+}
+
+function teardown_setup_runtime() {
+  if [[ "$ENABLE_CACHE" = "true" ]]; then
+    if [[ ! -f /tmp/runtime-teardown-executed ]]; then
+      touch /tmp/runtime-teardown-executed
+
+      _pids=()
+      for cb in "${TEARDOWN_CALLBACKS[@]}"; do
+        if [[ "$DEBUG" = "true" ]]; then
+          echo "Executing $cb"
+        fi
+        "$cb" &
+        _pids+=($!)
+      done
+      for _pid in "${_pids[@]}"; do
+        wait "$_pid"
+      done
+      unset _pids _pid
+
+      if [[ ! -d "$CACHE_DIRECTORY" ]]; then
+        return 0
+      fi
+
+      size_bytes=$(du -sb "$CACHE_DIRECTORY" | awk '{print $1}')
+
+      if [[ -n "$MAX_CACHE_SIZE_MB" ]]; then
+        local max_size=$(($MAX_CACHE_SIZE_MB * 1024 * 1024))
+
+        if (( size_bytes > max_size )); then
+          info "Cache size is $(du -sh "$CACHE_DIRECTORY" 2>/dev/null) which is above $MAX_CACHE_SIZE_MB MB. Cleaning up $CACHE_DIRECTORY..."
+          clear_cache_directory
+          info "Cleanup completed."
+        fi
+      fi
+
+      if [[ "$DEBUG" = "true" ]]; then
+        info "Cache size in $CACHE_DIR:"
+        info "$(du -sh "$CACHE_DIRECTORY" 2>/dev/null)" || true
+      fi
+    fi
+  else
+    clear_cache_directory
+  fi
+}
+
 CACHE_DIR="${CACHE_DIR:-cache}"
 export ENABLE_CACHE="${ENABLE_CACHE:-true}"
 export CACHE_DIRECTORY="${CACHE_DIRECTORY:-$(pwd)/$CACHE_DIR}"
@@ -111,63 +180,3 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     eval "$(pyenv init - bash)"
   fi
 fi
-
-# Empty $CACHE_DIRECTORY while keeping the directory itself, since Concourse
-# owns the mount point.
-#
-# This used to be `rm -rf "$CACHE_DIRECTORY/*"`, which is a literal path ending
-# in an asterisk: the glob never expanded, so nothing was ever deleted and both
-# cleanup paths below were silently doing nothing. find also covers dotfiles,
-# which a bare * skips.
-function clear_cache_directory() {
-  if [[ ! -d "$CACHE_DIRECTORY" ]]; then
-    return 0
-  fi
-
-  # Don't fail on this, you can receive Device or resource busy
-  find "$CACHE_DIRECTORY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
-}
-
-function teardown_setup_runtime() {
-  if [[ "$ENABLE_CACHE" = "true" ]]; then
-    if [[ ! -f /tmp/runtime-teardown-executed ]]; then
-      touch /tmp/runtime-teardown-executed
-
-      _pids=()
-      for cb in "${TEARDOWN_CALLBACKS[@]}"; do
-        if [[ "$DEBUG" = "true" ]]; then
-          echo "Executing $cb"
-        fi
-        "$cb" &
-        _pids+=($!)
-      done
-      for _pid in "${_pids[@]}"; do
-        wait "$_pid"
-      done
-      unset _pids _pid
-
-      if [[ ! -d "$CACHE_DIRECTORY" ]]; then
-        return 0
-      fi
-
-      size_bytes=$(du -sb "$CACHE_DIRECTORY" | awk '{print $1}')
-
-      if [[ -n "$MAX_CACHE_SIZE_MB" ]]; then
-        local max_size=$(($MAX_CACHE_SIZE_MB * 1024 * 1024))
-
-        if (( size_bytes > max_size )); then
-          info "Cache size is $(du -sh "$CACHE_DIRECTORY" 2>/dev/null) which is above $MAX_CACHE_SIZE_MB MB. Cleaning up $CACHE_DIRECTORY..."
-          clear_cache_directory
-          info "Cleanup completed."
-        fi
-      fi
-
-      if [[ "$DEBUG" = "true" ]]; then
-        info "Cache size in $CACHE_DIR:"
-        info "$(du -sh "$CACHE_DIRECTORY" 2>/dev/null)" || true
-      fi
-    fi
-  else
-    clear_cache_directory
-  fi
-}

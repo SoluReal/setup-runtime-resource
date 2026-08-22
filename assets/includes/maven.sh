@@ -20,8 +20,7 @@ function prepare_maven_cache() {
 function restore_maven_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/maven/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
     info "Restoring maven cache..."
-    mkdir -p $RUNTIME_HOME/.m2
-    tar -I lz4 -xf "$CACHE_DIRECTORY/maven/archive.tar.lz4" -C $RUNTIME_HOME/.m2
+    restore_lz4_cache "$CACHE_DIRECTORY/maven/archive.tar.lz4" "$RUNTIME_HOME/.m2"
   fi
 }
 

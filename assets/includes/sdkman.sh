@@ -11,8 +11,7 @@ function prepare_sdkman_cache() {
 function restore_sdkman_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
     info "Restoring sdkman candidates from cache..."
-    mkdir -p "$RUNTIME_DIR/sdkman/candidates/"
-    tar -I lz4 -xf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman" candidates
+    restore_lz4_cache "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" "$RUNTIME_DIR/sdkman" candidates
   fi
 }
 

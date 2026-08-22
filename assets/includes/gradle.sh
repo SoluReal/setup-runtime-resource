@@ -42,8 +42,7 @@ function prepare_gradle_cache() {
 function restore_gradle_cache() {
   if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/gradle/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
     info "Restoring gradle cache..."
-    mkdir -p "$GRADLE_USER_HOME"
-    tar -I lz4 -xf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" -C "$GRADLE_USER_HOME"
+    restore_lz4_cache "$CACHE_DIRECTORY/gradle/archive.tar.lz4" "$GRADLE_USER_HOME"
   fi
 }
 
