@@ -2,9 +2,9 @@
 
 A [Concourse](https://github.com/concourse/concourse) resource to setup a runtime environment for your tasks. This
 resource is inspired by the setup github actions like [actions/setup-java](https://github.com/actions/setup-java)
-and [actions/setup-node](https://github.com/actions/setup-node)
+and [actions/setup-node](https://github.com/actions/setup-node).
 
-It leverages `mmdebstrap` and `fakechroot` to create a lightweight Debian rootfs with the tools you need without
+It leverages `mmdebstrap` to create a lightweight Debian rootfs with the tools you need without
 requiring root. Due to concourse resource caching, the rootfs is only created once and reused for subsequent tasks.
 
 Previously teams created their own images, pushed them to a registry and used them in their pipelines. This resource
@@ -325,8 +325,7 @@ as possible to let it work with concourse caching.
 Please open an issue if your package manager is not supported or not working for your usecase.
 
 You can run out of disk space pretty easily when caching aggressively without cache pruning. Although this resource
-tries
-to prune the cache automatically, it might not work in all cases.
+tries to prune the cache automatically, it might not work in all cases.
 
 Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent the cache from growing too large.
 
