@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Rootless equivalent of docker-functions.sh. This uses podman instead
-# since podman can run rootless and is daemonless.
+# since podman can run rootless and is daemonless making it a good lightweight alternative.
 
 export XDG_RUNTIME_DIR="$HOME/.run"
 PODMAN_SOCKET="${XDG_RUNTIME_DIR}/podman/podman.sock"
@@ -65,19 +65,6 @@ await_docker() {
   done
 }
 
-# Print this build's container events, one JSON object per line.
-#
-# --since 0 reads the log from the start rather than from a recorded timestamp.
-# That is not "everything ever": the log lives in the task container's own
-# $XDG_RUNTIME_DIR/libpod/tmp/events/events.log, which is created fresh for
-# every build, so its whole contents are this build's events.
-#
-# Deliberately no --until. On podman 5.4.2 an --until that has already passed
-# ends the read immediately and returns a nondeterministic prefix of the log -
-# measured on one worker: 0 events, then 1, then 3, where the same call without
-# it returns all 13. Exit status is 0 either way, so it fails silently.
-# --stream=false is what terminates the read instead, and it is podman-only,
-# which is why this lives here and not in docker-cache.sh.
 container_events() {
   podman events --since 0 --stream=false --format '{{json .}}'
 }

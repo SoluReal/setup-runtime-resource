@@ -10,9 +10,7 @@ org.gradle.caching=true
 org.gradle.parallel=true
 # The configuration cache lives in the project cache dir, which defaults to
 # <project>/.gradle - a fresh checkout on every CI build, so it would never be
-# reused. Point it at the gradle home this script already archives instead
-# ('configuration-cache' is in the tar list below). Set here and not through a
-# GRADLE_PROP_ param because only this script knows where the runtime lives.
+# reused.
 org.gradle.projectcachedir=$GRADLE_USER_HOME
 EOF
   # Overwrite gradle.properties with GRADLE_PROP_ environment variables

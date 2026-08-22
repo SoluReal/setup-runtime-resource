@@ -134,8 +134,7 @@ await_docker() {
 #
 # --since 0 reads from the start of the daemon's event history rather than from
 # a recorded timestamp. dockerd is started fresh for every build, so its whole
-# history is this build's events. docker special-cases "0" to mean epoch rather
-# than a zero duration, so it is a timestamp here and not "0 seconds ago".
+# history is this build's events.
 #
 # --until bounds the range and is what stops `docker events` from streaming
 # forever; docker has no --stream flag, so unlike the podman version this one
