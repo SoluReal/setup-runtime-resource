@@ -79,25 +79,6 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
-# Prefer mmdebstrap's unshare mode over its own "auto" euid=0 heuristic
-# (which would pick real/root mode instead): it works under any Concourse
-# privileged mode that grants CAP_SYS_ADMIN + the mount/unshare/pivot_root
-# syscalls (full, fuse-only, and rootless privileged modes all currently
-# do). Only genuinely unprivileged tasks can't unshare a mount namespace at
-# all, so those fall back to fakechroot. Probe directly rather than
-# assuming from euid or a named mode, since what's actually granted is
-# what determines whether this works, not the mode's name.
-mount_probe_dir=$(mktemp -d)
-if unshare --user --map-root-user --mount -- \
-    mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
-  mmdebstrap_mode=unshare
-else
-  mmdebstrap_mode=fakechroot
-fi
-rmdir "$mount_probe_dir"
-
-info "mmdebstrap mode: $mmdebstrap_mode"
-
 args=()
 
 if [[ -n "${dependencies:-}" ]]; then
@@ -116,7 +97,7 @@ fi
 
 args+=(
   --variant=essential \
-  --mode=$mmdebstrap_mode \
+  --mode=auto \
   --aptopt='Acquire::Languages "none"' \
   --aptopt='Apt::Install-Recommends "false"' \
   --aptopt='APT::Get::Install-Suggests "false"' \
