@@ -7,9 +7,21 @@ function docker_load_cache() {
     if ls "$DOCKER_CACHE_DIR"/*.tar >/dev/null 2>&1; then
       cores=$(nproc --all)
 
+      export -f load_cached_image
+      export -f error
       printf '%s\n' "$DOCKER_CACHE_DIR"/*.tar | \
-        xargs -P "$cores" -I{} sh -c 'docker load < "$1"' _ {}
+        xargs -P "$cores" -I{} env -u BASH_ENV bash -c 'load_cached_image "$1"' _ {}
     fi
+  fi
+}
+
+# Load a single cached image tar, discarding it if it turns out to be corrupt.
+function load_cached_image() {
+  local cached_file="$1"
+
+  if ! docker load < "$cached_file" >/dev/null; then
+    error "Cached image $(basename "$cached_file") is corrupt, discarding it"
+    rm -f "$cached_file"
   fi
 }
 
@@ -38,13 +50,24 @@ function save_image_if_missing() {
   fi
 
   info "Saving $image"
-  docker save "$image" > "$cached_file"
+
+  # Save to a temp file and rename into place only on success, so a build
+  # that gets cancelled mid-save doesn't leave a corrupt tar in cache.
+  local tmp_file="$cached_file.tmp"
+  if docker save "$image" > "$tmp_file"; then
+    mv "$tmp_file" "$cached_file"
+  else
+    rm -f "$tmp_file"
+  fi
 }
 
 function docker_save_cache() {
   local images="$*"
 
   mkdir -p "$DOCKER_CACHE_DIR"
+
+  # Drop leftover partial saves from a run that was cancelled.
+  rm -f "$DOCKER_CACHE_DIR"/*.tmp
 
   # Which cache filenames this run's images map to, so leftover entries from
   # a previous run that weren't used this time can be told apart from ones
