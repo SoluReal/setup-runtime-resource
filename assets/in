@@ -79,6 +79,19 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
+# Prefer mmdebstrap's unshare mode over its own "auto" euid=0 heuristic which falls back to root.
+# In case unshare doesn't work we fallback to fakechroot.
+mount_probe_dir=$(mktemp -d)
+if unshare --user --map-root-user --mount -- \
+    mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
+  mmdebstrap_mode=unshare
+else
+  mmdebstrap_mode=fakechroot
+fi
+rmdir "$mount_probe_dir"
+
+info "mmdebstrap mode: $mmdebstrap_mode"
+
 args=()
 
 if [[ -n "${dependencies:-}" ]]; then
@@ -97,7 +110,7 @@ fi
 
 args+=(
   --variant=essential \
-  --mode=auto \
+  --mode=$mmdebstrap_mode \
   --aptopt='Acquire::Languages "none"' \
   --aptopt='Apt::Install-Recommends "false"' \
   --aptopt='APT::Get::Install-Suggests "false"' \
