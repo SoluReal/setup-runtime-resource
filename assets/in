@@ -96,6 +96,8 @@ else
 fi
 rmdir "$mount_probe_dir"
 
+info "mmdebstrap mode: $mmdebstrap_mode"
+
 args=()
 
 if [[ -n "${dependencies:-}" ]]; then
