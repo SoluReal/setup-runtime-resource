@@ -6,6 +6,7 @@ else
   source "$RUNTIME_DIR/docker/docker-functions.sh"
 fi
 source "$RUNTIME_DIR/docker/docker-cache.sh"
+source "$RUNTIME_DIR/docker/docker-login.sh"
 
 export CONTAINER_RUNTIME_PID_FILE="/tmp/container-runtime.pid"
 export CONTAINER_RUNTIME_LOG_FILE="/tmp/container-runtime.log"

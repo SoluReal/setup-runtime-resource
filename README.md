@@ -167,6 +167,40 @@ The following runtime environment variables are available:
 | `ENABLE_CACHE`      | Enable caching                                                          | `true`  |
 | `MAX_CACHE_SIZE_MB` | When the cache size is over the MAX_CACHE_SIZE_MB, the cache is pruned. | `""`    |
 
+## Docker registry logins
+
+When `testcontainers.enabled: true`, you can log the task in to one or more Docker registries
+before your task script runs, using numbered params:
+
+```yaml
+jobs:
+  - name: build
+    plan:
+      - get: setup-runtime
+      - task: build-project
+        image: setup-runtime
+        privileged: true
+        params:
+          DOCKER_LOGIN_1_REGISTRY: index.docker.io
+          DOCKER_LOGIN_1_USERNAME: ((dockerhub-username))
+          DOCKER_LOGIN_1_PASSWORD: ((dockerhub-password))
+          DOCKER_LOGIN_2_REGISTRY: registry.example.com
+          DOCKER_LOGIN_2_USERNAME: ((example-registry-username))
+          DOCKER_LOGIN_2_PASSWORD: ((example-registry-password))
+        config:
+          platform: linux
+          run:
+            path: bash
+            args:
+              - -ec
+              - docker pull registry.example.com/some/image
+```
+
+Numbering starts at `1` and must be contiguous; the first missing `DOCKER_LOGIN_<n>_REGISTRY`
+stops the loop. Logins run for both dockerd and rootless podman (via the `podman-docker` shim),
+and complete before your task's own script starts executing. If no `DOCKER_LOGIN_*` params are
+set, this is a no-op.
+
 ## SDKMAN
 
 [SDKMAN](https://sdkman.io/) is used to install JVM related tools. The `.sdkmanrc` file is supported by this resource.
