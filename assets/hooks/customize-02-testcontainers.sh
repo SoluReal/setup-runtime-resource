@@ -22,5 +22,16 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
     # on every single call; this file is the documented way to silence it.
     mkdir -p "$chroot_dir/etc/containers"
     touch "$chroot_dir/etc/containers/nodocker"
+
+    # aardvark-dns hardcodes port 53 by default. When Testcontainers creates
+    # several networks concurrently, their aardvark-dns instances race to bind
+    # 53; the loser leaves an incomplete network state, which later surfaces as
+    # "netavark: remove aardvark entries: IO error: No such file or directory"
+    # when that network is torn down. Moving DNS off 53 avoids the collision.
+    # https://github.com/podman-container-tools/podman/discussions/14242
+    cat >> "$chroot_dir/etc/containers/containers.conf" <<'EOF'
+[network]
+dns_bind_port = 5300
+EOF
   fi
 fi
