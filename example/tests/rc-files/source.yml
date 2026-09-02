@@ -1,0 +1,9 @@
+sdkman:
+  enabled: true
+nvm:
+  enabled: true
+pyenv:
+  enabled: true
+telemetry:
+  disable: true
+verbose: true

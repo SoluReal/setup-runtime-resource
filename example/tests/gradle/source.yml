@@ -1,0 +1,3 @@
+sdkman:
+  enabled: true
+verbose: true

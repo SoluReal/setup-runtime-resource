@@ -1,0 +1,31 @@
+platform: linux
+
+inputs:
+  - name: repo
+
+caches:
+  - path: cache
+
+params:
+  DEBUG: true
+  # The repository input contains the example projects.
+  PROJECTS_DIR: example
+
+run:
+  path: bash
+  args:
+    - -ec
+    - |
+      source "repo/$PROJECTS_DIR/tests/assert.sh"
+
+      pushd "repo/$PROJECTS_DIR/python"
+
+      # Install the python version specified in .python-version
+      pyenv install --skip-existing
+
+      # Set up virtualenv or just install dependencies
+      pip install -r requirements.txt
+
+      # Run tests
+      export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+      pytest

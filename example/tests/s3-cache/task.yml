@@ -1,0 +1,66 @@
+# Tests the S3 cache tier. Run it twice in a row against the same bucket:
+# the first run populates it, the second must find its dependencies already
+# there before the build starts.
+#
+# There is deliberately no `caches:` block. Without one, $CACHE_DIRECTORY is a
+# fresh empty directory in every container, so the *local* tier is permanently
+# cold and the only thing that can populate it is S3 - which is exactly the
+# "worker was rebuilt" case this tier exists for, reproduced without having to
+# clear a task cache mid-pipeline.
+platform: linux
+
+params:
+  DEBUG: true
+  ENABLE_CACHE: true
+
+  # Local emulator credentials.
+  S3_CACHE_ACCESS_KEY_ID: "test"
+  S3_CACHE_SECRET_ACCESS_KEY: "test"
+
+  # Use an isolated cache scope for this test.
+  S3_CACHE_SCOPE: setup-runtime-s3-cache-test
+
+  # The repository input contains the example projects.
+  PROJECTS_DIR: example
+
+inputs:
+  - name: repo
+
+run:
+  path: bash
+  args:
+    - -ec
+    - |
+      source "repo/$PROJECTS_DIR/tests/assert.sh"
+
+      # Check restored contents instead of rclone's success message.
+      restored=0
+
+      report() {
+        local label="$1" dir="$2"
+        local count=0
+        [[ -d "$dir" ]] && count=$(find "$dir" -type f 2>/dev/null | wc -l)
+        echo "  $label: $count files ($dir)"
+        (( count > 0 )) && restored=$((restored + 1))
+        return 0
+      }
+
+      echo "=== cache state before the build ==="
+      report "maven repository"    "$MAVEN_LOCAL_REPO"
+      report "maven wrapper dists" "$MAVEN_USER_HOME/wrapper/dists"
+      report "gradle modules-2"    "$GRADLE_USER_HOME/caches/modules-2"
+      report "gradle wrapper dists" "$GRADLE_USER_HOME/wrapper/dists"
+
+      if (( restored == 4 )); then
+        echo "S3 RESTORE VERIFIED: every dependency cache was populated before the build ran"
+      fi
+
+      # Running the wrappers also verifies restored executable bits.
+      ( cd "repo/$PROJECTS_DIR/gradle" && ./gradlew --no-daemon clean build )
+      ( cd "repo/$PROJECTS_DIR/maven" && ./mvnw clean install )
+
+      echo "=== cache state after the build (uploaded by the teardown trap) ==="
+      report "maven repository"    "$MAVEN_LOCAL_REPO"
+      report "maven wrapper dists" "$MAVEN_USER_HOME/wrapper/dists"
+      report "gradle modules-2"    "$GRADLE_USER_HOME/caches/modules-2"
+      report "gradle wrapper dists" "$GRADLE_USER_HOME/wrapper/dists"

@@ -14,6 +14,22 @@ services:
       - "5000:5000"
     restart: unless-stopped
 
+  # Local S3 emulator for the cache test.
+  floci:
+    image: floci/floci:latest
+    # Avoid a fixed container name so stacks can coexist.
+    ports:
+      - "4566:4566"
+    environment:
+      # Tasks reach the emulator as floci.
+      FLOCI_HOSTNAME: floci
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+
   db:
     image: postgres
     restart: unless-stopped
@@ -63,7 +79,7 @@ services:
     restart: unless-stopped
     command: worker
     privileged: true
-    depends_on: [ web, git-server, apt-cacher ]
+    depends_on: [ web, git-server, apt-cacher, floci ]
     volumes: [ "./keys/worker:/concourse-keys" ]
     links: [ web ]
     stop_signal: SIGUSR2
@@ -79,6 +95,7 @@ services:
     extra_hosts:
       - "apt-cacher:host-gateway"
       - "git-server:host-gateway"
+      - "floci:host-gateway"
     logging:
       driver: "json-file"
       options:
@@ -91,7 +108,9 @@ services:
       context: util/git-server
     container_name: git-server
     volumes:
-      - ./example:/git/repo:ro
+      # Serve the same paths as CI, excluding local keys.
+      - ./example:/git/repo/example:ro
+      - ./ci:/git/repo/ci:ro
     ports:
       - "3000:3000"
     restart: unless-stopped

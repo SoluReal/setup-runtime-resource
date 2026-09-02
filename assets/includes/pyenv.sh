@@ -1,19 +1,28 @@
 #!/bin/bash
 
-function prepare_pyenv_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_DIR/pyenv/versions" ]]; then
-    info "Saving pyenv versions to cache..."
-    mkdir -p "$CACHE_DIRECTORY/pyenv"
-    tar -I lz4 -cf "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" -C "$RUNTIME_DIR/pyenv" versions
-  fi
+# The versions directory stays in $RUNTIME_DIR and the task cache is copied in
+# and out around the build - see sdkman.sh for why nothing is linked into the
+# cache volume. This is the expensive one to lose: a pyenv version is compiled
+# rather than downloaded.
+#
+# versions/<version>, so the immutable directories are one level down.
+function restore_pyenv_cache() {
+  [[ "$ENABLE_CACHE" = "true" ]] || return 0
+
+  cache_restore_runtime "pyenv" \
+    "$RUNTIME_DIR/pyenv/versions" \
+    "$CACHE_DIRECTORY/pyenv/versions" \
+    "versions" \
+    1
 }
 
-function restore_pyenv_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
-    info "Restoring pyenv versions from cache..."
-    restore_lz4_cache "$CACHE_DIRECTORY/pyenv/archive.tar.lz4" "$RUNTIME_DIR/pyenv"
-  fi
+function save_pyenv_cache() {
+  cache_save_runtime "pyenv" \
+    "$RUNTIME_DIR/pyenv/versions" \
+    "$CACHE_DIRECTORY/pyenv/versions" \
+    "versions" \
+    1
 }
 
 register_initialize_callback restore_pyenv_cache
-register_teardown_callback prepare_pyenv_cache
+register_teardown_callback save_pyenv_cache

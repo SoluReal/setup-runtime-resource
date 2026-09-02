@@ -91,6 +91,17 @@ The resource `source` configuration supports the following options:
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
 | `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
 | `dependency_download_retries` | Number of times to retry a failed dependency download (`curl`) during rootfs creation. `0` disables retries.              | `0`     |
+| `s3_cache.enabled`            | **Experimental.** Keep the dependency caches in an S3-compatible bucket as well (see [S3 cache](#s3-cache)).              | `false` |
+| `s3_cache.bucket`             | Bucket to store the cache in. Required when `s3_cache.enabled` is set.                                                    | `""`    |
+| `s3_cache.endpoint`           | S3 endpoint URL. Leave empty for AWS S3.                                                                                  | `""`    |
+| `s3_cache.region`             | Bucket region.                                                                                                            | `""`    |
+| `s3_cache.prefix`             | Extra key prefix inside the bucket.                                                                                       | `""`    |
+| `s3_cache.provider`           | rclone's S3 provider hint (`AWS`, `Minio`, `Scaleway`, ...). `Other` suits any store rclone has no quirks for, Backblaze B2 included. | `Other` |
+| `s3_cache.transfers`          | Parallel object transfers.                                                                                                | `12`    |
+| `s3_cache.always_restore`     | Also consult S3 when the local cache is already warm. Adds a listing on every build.                                      | `false` |
+| `s3_cache.gradle_build_cache` | Also cache Gradle's task output cache (`build-cache-1`). See the caveat below.                                            | `false` |
+| `s3_cache.extra_dirs`         | Your own `$CACHE_DIRECTORY` subdirectories to cache.                                                                      | `[]`    |
+| `s3_cache.rclone_version`     | Pin a specific rclone version instead of tracking the current release.                                                    | `""`    |
 
 ## Tasks run as a non-root user
 
@@ -165,7 +176,11 @@ The following runtime environment variables are available:
 |---------------------|-------------------------------------------------------------------------|---------|
 | `DEBUG`             | Enable debug loggging on runtime                                        | `false` |
 | `ENABLE_CACHE`      | Enable caching                                                          | `true`  |
-| `MAX_CACHE_SIZE_MB` | When the cache size is over the MAX_CACHE_SIZE_MB, the cache is pruned. | `""`    |
+| `S3_CACHE_ACCESS_KEY_ID`     | Access key for the [S3 cache](#s3-cache). Required when it is enabled.                          | `""`    |
+| `S3_CACHE_SECRET_ACCESS_KEY` | Secret key for the [S3 cache](#s3-cache). Required when it is enabled.                          | `""`    |
+| `S3_CACHE_SCOPE`             | Which cache in the bucket this build uses - see [Scope](#scope).                                | `default` |
+| `S3_CACHE_RESTORE_MAX_DURATION` | Time budget for restoring from S3 before giving up and building without it.                 | `10m`   |
+| `S3_CACHE_SAVE_MAX_DURATION`    | Time budget for the upload at the end of a task. A cut-short upload resumes next build.      | `5m`    |
 
 ## Docker registry logins
 
@@ -358,15 +373,206 @@ as possible to let it work with concourse caching.
 
 Please open an issue if your package manager is not supported or not working for your usecase.
 
-You can run out of disk space pretty easily when caching aggressively without cache pruning. Although this resource
-tries to prune the cache automatically, it might not work in all cases.
+### Where the caches live
 
-Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent the cache from growing too large.
+`MAVEN_USER_HOME` (`$CACHE_DIRECTORY/maven`, holding both the local repository and the distributions `mvnw`
+downloads), `GRADLE_USER_HOME` (`$CACHE_DIRECTORY/gradle`) and the npm/yarn/pnpm caches all live *directly* in the
+task cache directory. Nothing is compressed into an archive first, so a build no longer pays a full
+compress-and-extract of the whole dependency tree on every run - which for a multi-GB Gradle cache is a meaningful
+chunk of build time.
+
+SDKMAN, NVM and pyenv get there differently but end up the same way. Their state directories sit at a path the tool
+fixes (`$SDKMAN_DIR/candidates`, `$NVM_DIR/versions`, `$PYENV_ROOT/versions`) and are partly baked into the rootfs at
+image build time, so they cannot simply be pointed elsewhere. Instead the directory is seeded into the task cache
+once from whatever the image shipped, and then symlinked to it - after which `sdk install`, `nvm install` and
+`pyenv install` write straight into the cache volume.
+
+### Reading the cache log
+
+A build logs what it moved, and nothing else. Every line means something was restored or saved - there are no lines
+reporting zero of something, so a first build against empty caches prints almost nothing here, and a warm build
+that installs nothing new prints no `save` lines at all:
+
+```
+[cache] tier s3=enabled scope=my-pipeline bucket=my-ci-cache
+[cache] restore maven/repository from=s3 files=1743 in=14s
+[cache] restore gradle/modules-2 from=local files=8210
+[cache] restore sdkman from=local candidates=3
+[cache] restore pyenv from=rootfs versions=1
+[cache] save maven/repository to=s3 files=1802 in=9s
+```
+
+`from=` is the question worth asking of a slow build:
+
+| Value | Meaning |
+| --- | --- |
+| `local` | The Concourse task cache already held it. No network call was made - the fast path. |
+| `s3` | The task cache was cold and the [S3 tier](#s3-cache) filled it. |
+| `rootfs` | It came with the image, baked in at `in` time - the [Docker image cache](#docker-image-cache), or the version the image shipped on a first build. |
+
+A key with no line against it had nothing cached anywhere, and whatever it covers is about to be downloaded from
+upstream. The flip side is that silence alone cannot tell you a cache is *working* - only that it moved nothing.
+The `tier s3=...` line below is what distinguishes a quiet warm build from a tier that never ran.
+
+A `tier s3=disabled reason=...` line says why the S3 tier is sitting the build out - `no-credentials` when
+`S3_CACHE_ACCESS_KEY_ID`/`S3_CACHE_SECRET_ACCESS_KEY` were not passed as task params, `no-bucket`,
+`no-rclone`, or `caching-disabled` when `ENABLE_CACHE` is off. Nothing in the cache layer may fail a build, so
+without that line a misconfigured tier is indistinguishable from a warm cache: the build just quietly downloads
+everything, every time, and still goes green.
+
+The lines are meant to be grepped as well as read. `[cache] <verb> <key> <field>=<value>...` is stable; new fields
+get appended rather than changing the ones already there.
 
 ### Docker image cache
 
 Docker images that are in your job will be automatically cached. This prevents the image from being downloaded every
 time your job runs when using e.g. [testcontainers](https://testcontainers.com/).
+
+## S3 cache
+
+> **Experimental.** Off by default, and not part of the release gate - the job covering it in CI depends on a
+> reachable bucket, so it is deliberately not allowed to block a publish. Expect the option names and key layout to
+> still change.
+
+The Concourse task cache is local to the worker that ran your build. If that worker is rebuilt - autoscaled away,
+recreated, or simply running with `--ephemeral` - the cache goes with it and the next build refetches every
+dependency from Maven Central, npm, or wherever else. Concourse cannot help here: a cache volume is bookkeeping
+tied to a live, registered worker, so it cannot outlive one.
+
+`s3_cache` adds a second tier in an S3-compatible bucket that survives all of that:
+
+```yaml
+resources:
+  - name: setup-runtime
+    type: setup-runtime-resource
+    source:
+      gradle:
+        wrapper: true
+      s3_cache:
+        enabled: true
+        bucket: my-ci-cache
+        endpoint: https://s3.eu-central-003.backblazeb2.com
+        region: eu-central-003
+```
+
+Credentials are **task params**, not `source`:
+
+```yaml
+      - task: build
+        image: setup-runtime
+        params:
+          S3_CACHE_ACCESS_KEY_ID: ((s3-access-key))
+          S3_CACHE_SECRET_ACCESS_KEY: ((s3-secret-key))
+```
+
+`check` hashes the resource `source` into its version, so keeping credentials out of it means rotating them doesn't
+rebuild your whole rootfs - and no secrets end up in pipeline config.
+
+### How it behaves
+
+The local task cache stays the fast path and is always tried first. S3 is consulted **only when the local cache is
+cold** - a rebuilt worker, or a first build. A warm worker makes no network
+calls at all. On the way out, only genuinely new files are uploaded; a build that added no dependencies skips the
+upload entirely without so much as a listing request.
+
+Transfers are per-object rather than one big archive, so both directions move only what the other side is missing,
+and an interrupted transfer simply resumes on the next build. Cache failures never fail a build - a bad credential
+or an unreachable bucket logs a warning and the build carries on downloading normally.
+
+### What gets cached
+
+| Cache | Uploaded |
+|---|---|
+| Maven `repository`, `wrapper/dists` | yes |
+| Gradle `caches/modules-2`, `wrapper/dists` | yes |
+| npm, yarn and pnpm caches | yes |
+| Anything in `s3_cache.extra_dirs` | yes |
+| Gradle `build-cache-1` | only with `s3_cache.gradle_build_cache` |
+| Gradle `caches/jars-9`, `configuration-cache` | no - derived, and tied to a Gradle version or a checkout path |
+| The [Docker image cache](#docker-image-cache) | no - see below |
+
+Everything uploaded is keyed by scope - see [Scope](#scope).
+
+Maven's `*.lastUpdated` and `_remote.repositories` files are deliberately excluded - they record a *failed*
+resolution, so restoring them would make later builds skip retrying an artifact that may since have become
+available.
+
+The [Docker image cache](#docker-image-cache) is **not** part of this tier and stays local to the worker. Image
+layers are already content-addressed and served by a registry that is itself a CDN, so putting a second copy in an
+object store in front of it buys little, and image caches are large enough to dominate the bucket. A rebuilt
+worker repulls its images from the registry as usual.
+
+### Caching your own tools
+
+Any tool that can be told where to keep its cache can join in. Point it at a subdirectory of `$CACHE_DIRECTORY`
+(which this resource exports into your task), then name that subdirectory in `extra_dirs`:
+
+```yaml
+source:
+  s3_cache:
+    enabled: true
+    bucket: my-ci-cache
+    extra_dirs:
+      - my-tool
+```
+
+Most build tools take the directory from config or an environment variable, so this is usually a one-liner in the
+tool's own configuration:
+
+```js
+// somewhere in your build config
+cacheDir: process.env.CACHE_DIRECTORY ? `${process.env.CACHE_DIRECTORY}/my-tool` : undefined,
+```
+
+**Gradle's `build-cache-1`** holds task *outputs* rather than downloaded dependencies, and is off by default because
+it behaves completely differently: entries are produced on every code change, so unlike a dependency cache it
+uploads on essentially every build, for a much lower hit rate per byte stored. If you enable it, Gradle's own
+[remote build cache](https://docs.gradle.org/current/userguide/build_cache.html) is still the better-engineered
+option; this is a cruder directory sync.
+
+### Scope
+
+Every cache is keyed as `<prefix>/pipeline/<scope>/...`, so a restore only ever downloads what was uploaded under the
+same scope. Name it with the `S3_CACHE_SCOPE` task param:
+
+```yaml
+      - task: build
+        image: setup-runtime
+        params:
+          S3_CACHE_ACCESS_KEY_ID: ((s3-access-key))
+          S3_CACHE_SECRET_ACCESS_KEY: ((s3-secret-key))
+          S3_CACHE_SCOPE: my-pipeline
+```
+
+Concourse tells a task nothing about the build it belongs to, so this cannot be worked out for you. Left unset, every
+build sharing a bucket prefix shares one cache - fine for a single pipeline, and probably not what you want for
+several, since each would pull down dependencies it has no use for.
+
+The trade-offs to be aware of: a new scope always starts cold, renaming one orphans its cache, and total storage grows
+with the number of scopes - bound it with a bucket lifecycle rule (see [Bucket retention](#bucket-retention)).
+
+### Bucket retention
+
+Two things to set on the bucket itself:
+
+- **Add a lifecycle rule** expiring objects after 90-180 days. Nothing is ever deleted from the bucket otherwise:
+  uploads use `rclone copy`, not `sync`, because a mirroring `sync` would delete everything the local cache happens
+  not to be holding.
+- **Leave versioning off**, or add a noncurrent-version expiration rule. Versioning plus repeated overwrites quietly
+  accumulates old versions that never show up in a normal bucket listing.
+
+Note that lifecycle rules expire on **object age, not last access**, and because unchanged files are never
+re-uploaded an object's timestamp never refreshes. So every object is deleted N days after it was first uploaded no
+matter how heavily it is used, and the cache turns over completely every N days. That is why the suggested window is
+much longer than the 30 days Gradle uses for its own local cleanup, which really is access-based.
+
+Turnover is not harmful, just wasteful: a cold restore misses the expired objects, the build fetches them from
+upstream as usual, and the next upload puts them back. Nothing breaks, and no build fails.
+
+Because the bucket is never pruned by content, a pipeline's pool grows towards "every dependency this pipeline has
+used within the window" rather than its current working set - a dependency that a build stops using is still restored
+until the lifecycle rule expires it. Keeping the window tight is what keeps a cold restore close to the size of the
+working set.
 
 ## Rootless testcontainers
 
