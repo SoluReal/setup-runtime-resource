@@ -1,22 +1,36 @@
 #!/bin/bash
 
-function prepare_sdkman_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_DIR/sdkman/candidates" ]]; then
-    info "Saving sdkman candidates to cache..."
-    mkdir -p "$CACHE_DIRECTORY/sdkman"
-    tar -I lz4 -cf "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" -C "$RUNTIME_DIR/sdkman/" candidates
-  fi
+# The candidates directory stays where the image put it. The task cache is
+# copied in at startup and whatever this build installed is copied back out at
+# teardown, one candidate version at a time and only when a side is missing it.
+# Nothing is linked or mounted into the cache volume, so `sdk install` always
+# writes the image's own filesystem: an unreadable cache costs a reinstall and
+# says so, rather than leaving SDKMAN attached to a volume it cannot write.
+function sdkman_candidates_dir() { echo "$RUNTIME_DIR/sdkman/candidates"; }
+function sdkman_cache_dir() { echo "$CACHE_DIRECTORY/sdkman/candidates"; }
+
+# candidates/<candidate>/<version> - two levels down is where the immutable
+# directories are, and where `current` sits as a symlink beside them.
+function restore_sdkman_cache() {
+  [[ "$ENABLE_CACHE" = "true" ]] || return 0
+
+  cache_restore_runtime "sdkman" \
+    "$(sdkman_candidates_dir)" \
+    "$(sdkman_cache_dir)" \
+    "candidates" \
+    2
 }
 
-function restore_sdkman_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
-    info "Restoring sdkman candidates from cache..."
-    restore_lz4_cache "$CACHE_DIRECTORY/sdkman/archive.tar.lz4" "$RUNTIME_DIR/sdkman" candidates
-  fi
+function save_sdkman_cache() {
+  cache_save_runtime "sdkman" \
+    "$(sdkman_candidates_dir)" \
+    "$(sdkman_cache_dir)" \
+    "candidates" \
+    2
 }
 
 register_initialize_callback restore_sdkman_cache
-register_teardown_callback prepare_sdkman_cache
+register_teardown_callback save_sdkman_cache
 
 # SDKMAN only puts a candidate on PATH while sourcing sdkman-init.sh, and only
 # if its `current` symlink already exists. `sdk use` / `sdk env install` rewrite

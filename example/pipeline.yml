@@ -1,3 +1,14 @@
+# The local pipeline, deployed by ../build-and-test.sh against the
+# docker-compose.yml stack. It is ci/pipeline.yml minus everything that only
+# makes sense on a real Concourse (publishing, versioning, PRs): the same test
+# jobs, driven by the same ci/tasks/run-tests.sh.
+#
+#   ./build-and-test.sh              # every test under example/tests/
+#   TEST=maven ./build-and-test.sh   # one specific test
+#
+# Every test-* job is manual on purpose. The `test` job below is what starts
+# them, twice each, because a test that has never restored a cache has only
+# tested half of this resource.
 resource_types:
 - name: setup-runtime-resource
   type: registry-image
@@ -9,21 +20,199 @@ resource_types:
     insecure: true
 
 resources:
-- name: setup-runtime
+# The image the `test` job's own task runs in - it needs bash and curl, and this
+# one is being tested anyway. Not a `setup-runtime-resource`: that would build a
+# whole rootfs for a task that only shells out to fly.
+- name: setup-runtime-image
+  type: registry-image
+  icon: docker
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+# One resource per directory under example/tests/, each configured from that
+# directory's source.yml. build-and-test.sh reads the files and passes them in as
+# these vars, exactly as the deploying pipeline does for ci/pipeline.yml, so the
+# file in this repo stays the single definition of a test's runtime.
+- name: setup-runtime-full
   type: setup-runtime-resource
   icon: account-hard-hat
-
   source:
-    ((SETUP_RUNTIME_SOURCE))
+    ((SOURCE_FULL))
+
+- name: setup-runtime-simple
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_SIMPLE))
+
+- name: setup-runtime-gradle
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_GRADLE))
+
+- name: setup-runtime-maven
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_MAVEN))
+
+- name: setup-runtime-nodejs
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_NODEJS))
+
+- name: setup-runtime-python
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_PYTHON))
+
+- name: setup-runtime-rc-files
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_RC_FILES))
+
+- name: setup-runtime-testcontainers-rootless
+  type: setup-runtime-resource
+  icon: account-hard-hat
+  source:
+    ((SOURCE_TESTCONTAINERS_ROOTLESS))
+
+- name: setup-runtime-s3-cache
+  type: setup-runtime-resource
+  icon: cloud-sync
+  source:
+    ((SOURCE_S3_CACHE))
+
+# The git-server container serves this repository, so `repo` is laid out exactly
+# as CI's git resource is and the tasks are the same files at the same paths.
+- name: repo
+  type: git
+  source:
+    uri: http://git-server:3000/example.git
 
 jobs:
-- name: test-setup-runtime
+- name: test
   serial: true
   plan:
-  - get: setup-runtime
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-image
+  - task: run-tests
+    image: setup-runtime-image
+    file: repo/ci/tasks/run-tests.yml
+    params:
+      # Local credentials; CI supplies its own.
+      FLY_USERNAME: test
+      FLY_PASSWORD: test
+      # URL reachable by tasks.
+      FLY_API_URL: http://web:8080
+      # Pipeline name used by build-and-test.sh.
+      PIPELINE: setup-runtime
+      # Empty runs every test.
+      TESTS: ((tests))
 
+# Everything below is triggered by the `test` job above, never on its own.
+- name: test-full
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-full
   - task: test-image
-    image: setup-runtime
+    image: setup-runtime-full
     privileged: true
-    config:
-      ((TASK_CONFIG))
+    file: repo/example/tests/full/task.yml
+
+- name: test-simple
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-simple
+  - task: test-image
+    image: setup-runtime-simple
+    privileged: true
+    file: repo/example/tests/simple/task.yml
+
+- name: test-gradle
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-gradle
+  - task: test-image
+    image: setup-runtime-gradle
+    privileged: true
+    file: repo/example/tests/gradle/task.yml
+
+- name: test-maven
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-maven
+  - task: test-image
+    image: setup-runtime-maven
+    privileged: true
+    file: repo/example/tests/maven/task.yml
+
+- name: test-nodejs
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-nodejs
+  - task: test-image
+    image: setup-runtime-nodejs
+    privileged: true
+    file: repo/example/tests/nodejs/task.yml
+
+- name: test-python
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-python
+  - task: test-image
+    image: setup-runtime-python
+    privileged: true
+    file: repo/example/tests/python/task.yml
+
+- name: test-rc-files
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-rc-files
+  - task: test-image
+    image: setup-runtime-rc-files
+    privileged: true
+    file: repo/example/tests/rc-files/task.yml
+
+- name: test-testcontainers-rootless
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-testcontainers-rootless
+  - task: test-image
+    image: setup-runtime-testcontainers-rootless
+    privileged: true
+    file: repo/example/tests/testcontainers-rootless/task.yml
+
+- name: test-s3-cache
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-s3-cache
+  - task: test-image
+    image: setup-runtime-s3-cache
+    privileged: true
+    file: repo/example/tests/s3-cache/task.yml

@@ -1,0 +1,15 @@
+# Local-only source: the endpoint is the floci AWS emulator from
+# docker-compose.yml. CI runs this same task against a real bucket, with the
+# source coming from ci/pipeline-vars.yml instead - see the note there.
+java:
+  version: 21
+maven:
+  version: 3.9.6
+gradle:
+  wrapper: true
+verbose: true
+s3_cache:
+  enabled: true
+  bucket: setup-runtime-cache
+  endpoint: http://floci:4566
+  region: us-east-1

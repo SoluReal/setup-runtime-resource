@@ -12,6 +12,7 @@ source $ROOT_DIR/installers/sdkman.sh
 source $ROOT_DIR/installers/node.sh
 source $ROOT_DIR/installers/pyenv.sh
 source $ROOT_DIR/installers/golang.sh
+source $ROOT_DIR/installers/s3cache.sh
 
 dest=$1
 
@@ -47,6 +48,27 @@ export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload"
 
 export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
 
+# S3-backed second cache tier. Credentials are deliberately absent here - they are
+# task params, so rotating them doesn't change the resource version hash.
+export s3_cache_enabled=$(jq -r '(.source.s3_cache.enabled // "false")' <<< "$payload")
+export s3_cache_bucket=$(jq -r '(.source.s3_cache.bucket // "")' <<< "$payload")
+export s3_cache_endpoint=$(jq -r '(.source.s3_cache.endpoint // "")' <<< "$payload")
+export s3_cache_region=$(jq -r '(.source.s3_cache.region // "")' <<< "$payload")
+export s3_cache_prefix=$(jq -r '(.source.s3_cache.prefix // "")' <<< "$payload")
+# rclone's S3 provider hint (AWS, Minio, Scaleway, ...). `Other` covers any
+# store rclone has no specific quirks for.
+export s3_cache_provider=$(jq -r '(.source.s3_cache.provider // "")' <<< "$payload")
+export s3_cache_transfers=$(jq -r '(.source.s3_cache.transfers // "")' <<< "$payload")
+export s3_cache_always_restore=$(jq -r '(.source.s3_cache.always_restore // "false")' <<< "$payload")
+export s3_cache_gradle_build_cache=$(jq -r '(.source.s3_cache.gradle_build_cache // "false")' <<< "$payload")
+export s3_cache_rclone_version=$(jq -r '(.source.s3_cache.rclone_version // "")' <<< "$payload")
+export s3_cache_extra_dirs=$(jq -r '(.source.s3_cache.extra_dirs // [] | join(" "))' <<< "$payload")
+
+if [[ "$s3_cache_enabled" = "true" && -z "$s3_cache_bucket" ]]; then
+  error "s3_cache.enabled is true but s3_cache.bucket is not set"
+  exit 1
+fi
+
 export VERBOSE=$verbose
 export DISABLE_TELEMETRY=$telemetry
 export DEBUG=$(jq -r '(.source.debug // "false")' <<< "$payload")
@@ -58,6 +80,7 @@ dependencies="
   $(pyenv_get_dependencies)
   $(golang_get_dependencies)
   $(testcontainers_get_dependencies)
+  $(s3cache_get_dependencies)
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
@@ -145,6 +168,12 @@ if [[ -n "$hook" ]]; then
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
   info "Custom hook finished"
 fi
+
+# chroot_exec sources .bashrc, which runs the runtime initialize callbacks and
+# creates the cache directory at a path relative to the chroot. That is not the
+# real task cache mount (Concourse mounts that at task time), so drop it instead
+# of baking an empty maven/gradle tree into the image.
+rm -rf "$dest/rootfs/cache"
 
 set_env "BASH_ENV=$RUNTIME_HOME/.bashrc"
 set_env "HOME=$RUNTIME_HOME"
