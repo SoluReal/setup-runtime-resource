@@ -1,0 +1,23 @@
+platform: linux
+
+inputs:
+  - name: repo
+
+caches:
+  - path: cache
+
+params:
+  DEBUG: true
+  # The repository input contains the example projects.
+  PROJECTS_DIR: example
+
+run:
+  path: bash
+  args:
+    - -ec
+    - |
+      source "repo/$PROJECTS_DIR/tests/assert.sh"
+
+      pushd "repo/$PROJECTS_DIR/maven"
+      sdk env install
+      ./mvnw clean install

@@ -1,0 +1,8 @@
+java:
+  version: 25
+testcontainers:
+  enabled: true
+  rootless: true
+telemetry:
+  disable: true
+verbose: true

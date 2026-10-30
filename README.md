@@ -165,7 +165,6 @@ The following runtime environment variables are available:
 |---------------------|-------------------------------------------------------------------------|---------|
 | `DEBUG`             | Enable debug loggging on runtime                                        | `false` |
 | `ENABLE_CACHE`      | Enable caching                                                          | `true`  |
-| `MAX_CACHE_SIZE_MB` | When the cache size is over the MAX_CACHE_SIZE_MB, the cache is pruned. | `""`    |
 
 ## Docker registry logins
 
@@ -358,10 +357,43 @@ as possible to let it work with concourse caching.
 
 Please open an issue if your package manager is not supported or not working for your usecase.
 
-You can run out of disk space pretty easily when caching aggressively without cache pruning. Although this resource
-tries to prune the cache automatically, it might not work in all cases.
+### Where the caches live
 
-Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent the cache from growing too large.
+`MAVEN_USER_HOME` (`$CACHE_DIRECTORY/maven`, holding both the local repository and the distributions `mvnw`
+downloads), `GRADLE_USER_HOME` (`$CACHE_DIRECTORY/gradle`) and the npm/yarn/pnpm caches all live *directly* in the
+task cache directory. Nothing is compressed into an archive first, so a build no longer pays a full
+compress-and-extract of the whole dependency tree on every run - which for a multi-GB Gradle cache is a meaningful
+chunk of build time.
+
+SDKMAN, NVM and pyenv are **not** cached. Each keeps its state at a path the tool fixes
+(`$SDKMAN_DIR/candidates`, `$NVM_DIR/versions/node`, `$PYENV_ROOT/versions`), inside the rootfs and baked in at
+image build time, so there is no environment variable that moves it onto the cache volume. The versions your
+`source` asks for ship in the image and cost nothing; a `sdk install`, `nvm install` or `pyenv install` the task
+runs for some *other* version is redone on every build. Ask for it in `source` instead and it is built once, when
+the rootfs is.
+
+### Reading the cache log
+
+A build logs what it moved. There are no lines reporting zero of something, so a first build against empty caches
+prints almost nothing here:
+
+```
+[cache] restore gradle/modules-2 from=local files=8210
+[cache] restore node/npm from=local files=412
+```
+
+`from=` is the question worth asking of a slow build:
+
+| Value | Meaning |
+| --- | --- |
+| `local` | The Concourse task cache already held it. No network call was made - the fast path. |
+| `rootfs` | It came with the image, baked in at `in` time - the [Docker image cache](#docker-image-cache). |
+
+A key with no line against it had nothing cached anywhere, and whatever it covers is about to be downloaded from
+upstream.
+
+The lines are meant to be grepped as well as read. `[cache] <verb> <key> <field>=<value>...` is stable; new fields
+get appended rather than changing the ones already there.
 
 ### Docker image cache
 

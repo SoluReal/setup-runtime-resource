@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export GRADLE_USER_HOME="$RUNTIME_HOME/.gradle"
+export GRADLE_USER_HOME="$CACHE_DIRECTORY/gradle"
 
 function prepare_gradle_config() {
   # Persist gradle.properties at build time
@@ -24,26 +24,9 @@ EOF
   done < <(env)
 }
 
-function prepare_gradle_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "$GRADLE_USER_HOME" ]]; then
-    info "Saving gradle cache..."
-    mkdir -p "$CACHE_DIRECTORY/gradle"
-    # Only cache what is needed
-    # caches/modules-2
-    # wrapper/dists
-    tar -I lz4 -cf "$CACHE_DIRECTORY/gradle/archive.tar.lz4" \
-      -C "$GRADLE_USER_HOME" \
-      caches/jars-9 caches/modules-2 wrapper/dists caches/build-cache-1 configuration-cache 2>/dev/null || true
-  fi
-}
-
-function restore_gradle_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/gradle/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
-    info "Restoring gradle cache..."
-    restore_lz4_cache "$CACHE_DIRECTORY/gradle/archive.tar.lz4" "$GRADLE_USER_HOME"
-  fi
-}
+# caches/jars-9, build-cache-1 and configuration-cache are deliberately absent:
+# all three are derived, and tied to a Gradle version or a checkout path.
+register_cache_dir gradle/modules-2 "$GRADLE_USER_HOME/caches/modules-2"
+register_cache_dir gradle/wrapper-dists "$GRADLE_USER_HOME/wrapper/dists"
 
 register_initialize_callback prepare_gradle_config
-register_initialize_callback restore_gradle_cache
-register_teardown_callback prepare_gradle_cache

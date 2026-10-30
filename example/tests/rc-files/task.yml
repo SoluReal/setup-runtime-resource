@@ -1,0 +1,59 @@
+platform: linux
+
+inputs:
+  - name: repo
+
+caches:
+  - path: cache
+
+params:
+  DEBUG: true
+  # The repository input contains the example projects.
+  PROJECTS_DIR: example
+  GRADLE_PROP_org_gradle_parallel: false
+
+run:
+  path: bash
+  args:
+    - -ec
+    - |
+      source "repo/$PROJECTS_DIR/tests/assert.sh"
+
+      echo "v25.2.1" > .nvmrc
+      echo "java=21.0.4-tem" > .sdkmanrc
+
+      nvm install
+      sdk env install
+
+      node --version | assert_contains "25.2.1"
+
+      # Reload ~/.bashrc so the selected versions are on PATH.
+      source ~/.bashrc
+      java --version | assert_contains "openjdk 21.0.4"
+      java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.4"
+
+      mkdir -p subdir
+      echo "v25.2.0" > subdir/.nvmrc
+      echo "java=21.0.3-tem" > subdir/.sdkmanrc
+
+      cd subdir
+      nvm install
+      sdk env install
+
+      node --version | assert_contains "25.2.0"
+      java --version | assert_contains "openjdk 21.0.3"
+      java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.3"
+
+      cd ..
+
+      nvm use
+      sdk env install
+
+      node --version | assert_contains "25.2.1"
+      java --version | assert_contains "openjdk 21.0.4"
+      java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.4"
+
+      echo "3.12.2" > .python-version
+      pyenv install --skip-existing
+      pyenv local
+      python --version | assert_contains "Python 3.12.2"

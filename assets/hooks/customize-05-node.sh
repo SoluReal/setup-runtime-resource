@@ -55,7 +55,7 @@ if [ -n "$nodejs_version" ]; then
       if [ "$bun_version" = "latest" ]; then
         BUN_INSTALL="$chroot_dir/usr/local" bash "$installer"
       else
-        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer" -s -- "bun-v${bun_version}"
+        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer" "bun-v${bun_version}"
       fi
       rm -f "$installer"
     ) &

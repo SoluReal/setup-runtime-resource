@@ -91,7 +91,9 @@ services:
       context: util/git-server
     container_name: git-server
     volumes:
-      - ./example:/git/repo:ro
+      # Serve the same paths as CI, excluding local keys.
+      - ./example:/git/repo/example:ro
+      - ./ci:/git/repo/ci:ro
     ports:
       - "3000:3000"
     restart: unless-stopped

@@ -1,0 +1,5 @@
+nodejs:
+  version: lts
+  yarn:
+    version: 4.10.2
+verbose: true

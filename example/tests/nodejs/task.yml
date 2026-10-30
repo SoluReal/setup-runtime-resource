@@ -1,0 +1,47 @@
+platform: linux
+
+inputs:
+  - name: repo
+
+caches:
+  - path: cache
+
+params:
+  DEBUG: true
+  # The repository input contains the example projects.
+  PROJECTS_DIR: example
+
+run:
+  path: bash
+  args:
+    - -ec
+    - |
+      source "repo/$PROJECTS_DIR/tests/assert.sh"
+
+      pushd "repo/$PROJECTS_DIR/nodejs"
+
+      echo "--- Testing npm ---"
+      npm install
+      npm test
+      rm -rf node_modules
+
+      echo "--- Testing pnpm ---"
+      pnpm install
+      pnpm test
+      rm -rf node_modules
+
+      echo "--- Testing bun ---"
+      bun install
+      bun test
+      rm -rf node_modules
+
+      echo "--- Testing yarn ---"
+      rm package.json
+      mv package.json.yarn package.json
+      mv yarn.lock.bak yarn.lock
+
+      nvm install
+      yarn --version
+
+      yarn
+      yarn test
