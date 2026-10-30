@@ -104,6 +104,8 @@ export OUTPUT_FILE=/tmp/info_log
 touch $OUTPUT_FILE
 tail -f "$OUTPUT_FILE" &
 INFO_LOGGER_PID=$!
+# A surviving tail holds the task's stderr open, so Concourse would wait on a failed build forever.
+trap 'kill $INFO_LOGGER_PID 2>/dev/null || true' EXIT
 
 if [[ -n "${debian_proxy:-}" ]]; then
   info "Using debian proxy: $debian_proxy"
@@ -128,6 +130,7 @@ args+=(
 log_on_error mmdebstrap "${args[@]}"
 
 kill $INFO_LOGGER_PID
+trap - EXIT
 
 mkdir -p "$dest/rootfs/"
 tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
