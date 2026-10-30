@@ -83,12 +83,6 @@ resources:
   source:
     ((SOURCE_TESTCONTAINERS_ROOTLESS))
 
-- name: setup-runtime-s3-cache
-  type: setup-runtime-resource
-  icon: cloud-sync
-  source:
-    ((SOURCE_S3_CACHE))
-
 # The git-server container serves this repository, so `repo` is laid out exactly
 # as CI's git resource is and the tasks are the same files at the same paths.
 - name: repo
@@ -205,14 +199,3 @@ jobs:
     image: setup-runtime-testcontainers-rootless
     privileged: true
     file: repo/example/tests/testcontainers-rootless/task.yml
-
-- name: test-s3-cache
-  serial: true
-  plan:
-  - in_parallel:
-    - get: repo
-    - get: setup-runtime-s3-cache
-  - task: test-image
-    image: setup-runtime-s3-cache
-    privileged: true
-    file: repo/example/tests/s3-cache/task.yml

@@ -98,28 +98,6 @@ resources:
     source:
       ((SOURCE_TESTCONTAINERS_ROOTLESS))
 
-  # The S3 test uses the local emulator here and deployment-provided settings in CI.
-  - name: setup-runtime-s3-cache
-    type: setup-runtime-resource
-    icon: cloud-sync
-    source:
-      sdkman:
-        enabled: true
-      java:
-        version: 21
-      maven:
-        version: 3.9.6
-      gradle:
-        wrapper: true
-      verbose: true
-      dependency_download_retries: 3
-      s3_cache:
-        enabled: true
-        bucket: ((s3-cache-bucket))
-        endpoint: ((s3-cache-endpoint))
-        region: ((s3-cache-region))
-        prefix: ((s3-cache-prefix))
-
   - name: pr-source
     type: github-pr
     icon: source-pull
@@ -197,7 +175,7 @@ jobs:
           FLY_USERNAME: ((fly-username))
           FLY_PASSWORD: ((fly-password))
           PIPELINE: setup-runtime-resource
-          TESTS: s3-cache testcontainers-rootless
+          TESTS: testcontainers-rootless
 
   # Each test directory has a manually triggered job.
   - name: test-full
@@ -295,22 +273,6 @@ jobs:
         image: setup-runtime-testcontainers-rootless
         privileged: true
         file: repo/example/tests/testcontainers-rootless/task.yml
-
-  - name: test-s3-cache
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-s3-cache
-        - get: repo
-          passed: [ build ]
-      # No task cache: the second run must restore from S3.
-      - task: test-image
-        image: setup-runtime-s3-cache
-        privileged: true
-        file: repo/example/tests/s3-cache/task.yml
-        params:
-          S3_CACHE_ACCESS_KEY_ID: ((s3-cache-access-key-id))
-          S3_CACHE_SECRET_ACCESS_KEY: ((s3-cache-secret-access-key))
 
   - name: pr-build-and-test
     serial: true

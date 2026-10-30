@@ -36,7 +36,6 @@ function cache_file_size() {
   du -sh "$path" 2>/dev/null | cut -f1
 }
 
-# The Concourse task cache already held this one, so no network tier was asked.
 # Callers reach here on a non-empty directory, but a directory holding only empty
 # subdirectories still counts zero files - and a cache reporting zero of
 # something says nothing worth reading.
@@ -59,119 +58,8 @@ function register_initialize_callback() {
   ON_INITIALIZE_CALLBACKS+=("$1")
 }
 
-function cache_entry_count() {
-  local dir="$1"
-  [[ -d "$dir" ]] || { echo 0; return 0; }
-  ls -A "$dir" 2>/dev/null | wc -l | tr -d ' '
-}
-
-function cache_prune_incomplete() {
-  local dir="$1"
-  [[ -d "$dir" ]] || return 0
-  find "$dir" -depth -name '*.incomplete' -exec rm -rf {} + 2>/dev/null || true
-}
-
-function cache_copy_missing() {
-  local key="$1" src="$2" dst="$3" depth="$4"
-  local copied=0 entry rel target scratch
-
-  [[ -d "$src" ]] || { echo 0; return 0; }
-
-  while IFS= read -r entry; do
-    rel="${entry#"$src"/}"
-    target="$dst/$rel"
-    [[ -e "$target" || -L "$target" ]] && continue
-
-    mkdir -p "$(dirname "$target")" || continue
-    scratch="$target.incomplete"
-    rm -rf "$scratch"
-
-    # Preserve modes and symlinks, then publish the copy atomically.
-    if cp -a "$entry" "$scratch" && mv "$scratch" "$target"; then
-      copied=$((copied + 1))
-    else
-      rm -rf "$scratch"
-      error "Could not copy $key/$rel - it will be reinstalled when something needs it"
-    fi
-  done < <(find "$src" -mindepth "$depth" -maxdepth "$depth" \
-             \( -type d -o -type l \) ! -name '*.incomplete' 2>/dev/null)
-
-  echo "$copied"
-}
-
-# Bring the task cache's versions into the runtime directory the image shipped.
-#
-# The runtime stays where it is and the cache is copied into it, rather than the
-# runtime being pointed or linked at the cache volume. That costs a copy the
-# first time a version is seen, and buys the property that the tool only ever
-# writes the image's own filesystem: a cache that cannot be read - streamed from
-# another worker, remounted under a different uid - costs a reinstall and says
-# so, instead of leaving a runtime half-attached to a volume it cannot write.
-#
-#   cache_restore_runtime <key> <runtime-dir> <cache-dir> <unit> <depth> [count-dir] [after-fn]
-function cache_restore_runtime() {
-  local key="$1" runtime_dir="$2" cache_dir="$3" unit="$4" depth="$5"
-  local count_dir="${6:-$runtime_dir}"
-  local after_restore="${7:-}"
-
-  mkdir -p "$cache_dir" "$runtime_dir"
-  cache_prune_incomplete "$cache_dir"
-  cache_prune_incomplete "$runtime_dir"
-
-  # Record whether the cache already contained this runtime.
-  local before
-  before="$(cache_entry_count "$cache_dir")"
-
-  cache_copy_missing "$key" "$cache_dir" "$runtime_dir" "$depth" >/dev/null
-
-  # Clean up incomplete entries before counting the restored runtime.
-  [[ -n "$after_restore" ]] && "$after_restore"
-
-  local count
-  count="$(cache_entry_count "$count_dir")"
-
-  # Nothing to say when there was nothing to restore: an empty cache is the
-  # normal state of a first build, and a line per key claiming zero of something
-  # reads like a fault. The save event at teardown is what shows up instead.
-  if (( count == 0 )); then
-    return 0
-  elif (( before > 0 )); then
-    cache_event "restore $key from=local $unit=$count"
-  else
-    cache_event "restore $key from=rootfs $unit=$count"
-  fi
-
-  return 0
-}
-
-# The other half: hand back whatever this build installed. Only versions the
-# cache does not already hold are copied, so the usual build writes nothing.
-#
-#   cache_save_runtime <key> <runtime-dir> <cache-dir> <unit> <depth>
-function cache_save_runtime() {
-  local key="$1" runtime_dir="$2" cache_dir="$3" unit="$4" depth="$5"
-
-  [[ "$ENABLE_CACHE" = "true" ]] || return 0
-  [[ -d "$runtime_dir" ]] || return 0
-
-  mkdir -p "$cache_dir"
-
-  local saved
-  saved="$(cache_copy_missing "$key" "$runtime_dir" "$cache_dir" "$depth")"
-
-  # Silent when nothing moved - which is the usual warm build, since a version
-  # already in the cache is never copied again. A build logs what it moved and
-  # nothing else.
-  if (( saved > 0 )); then
-    cache_event "save $key to=local $unit=$saved"
-  fi
-
-  return 0
-}
-
 # Empty $CACHE_DIRECTORY while keeping the directory itself, since Concourse
-# owns the mount point. Only used when caching is switched off entirely - the
-# runtimes keep their live state in here now, so this is not a pruning tool.
+# owns the mount point. Only used when caching is switched off entirely.
 function clear_cache_directory() {
   if [[ ! -d "$CACHE_DIRECTORY" ]]; then
     return 0
@@ -181,64 +69,24 @@ function clear_cache_directory() {
   find "$CACHE_DIRECTORY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
 }
 
-# Caches that need no per-tool logic: the whole directory is synced under one
-# key, with the generic excludes below. Maven and Gradle are absent because they
-# need the opposite of all of that - individual subdirectories under separate
-# keys, tool-specific excludes, and cleanup after a partial restore - so they
-# call s3cache_restore/s3cache_save themselves from their own plugins.
+# register_cache_dir <key> <dir>
 #
-# Empty here on purpose. A plugin registers its own directories when it is
-# installed, so a runtime that is not enabled has nothing to restore and never
-# announces a key the image does not have - `register_directory_cache <name>`,
-# called from the tool's include.
-S3_DIR_CACHES=()
+# Filled by the runtime plugins, so an image without a tool never announces its
+# key. Only used to log what the task cache already held.
+CACHE_KEYS=()
+declare -A CACHE_PATHS=()
 
-function register_directory_cache() {
-  S3_DIR_CACHES+=("$1")
+function register_cache_dir() {
+  CACHE_KEYS+=("$1")
+  CACHE_PATHS["$1"]="$2"
 }
 
-DIR_CACHE_EXCLUDES=(
-  --exclude "**/tmp/**"
-  --exclude "**/_locks/**"
-  --exclude "**/*.lock"
-)
-
-function restore_directory_caches() {
+function restore_cache_dirs() {
   [[ "$ENABLE_CACHE" = "true" ]] || return 0
 
-  local name dir
-  for name in "${S3_DIR_CACHES[@]}"; do
-    dir="$CACHE_DIRECTORY/$name"
-    # Skip S3 when the local cache is warm.
-    if [[ -n "$(ls -A "$dir" 2>/dev/null)" && "$S3_CACHE_ALWAYS_RESTORE" != "true" ]]; then
-      cache_local_hit "node/$name" "$dir"
-      continue
-    fi
-    s3cache_restore "$dir" "node/$name" "${DIR_CACHE_EXCLUDES[@]}" || true
-  done
-
-  for name in ${S3_CACHE_EXTRA_DIRS:-}; do
-    dir="$CACHE_DIRECTORY/$name"
-    if [[ -n "$(ls -A "$dir" 2>/dev/null)" && "$S3_CACHE_ALWAYS_RESTORE" != "true" ]]; then
-      cache_local_hit "dir/$name" "$dir"
-      continue
-    fi
-    s3cache_restore "$dir" "dir/$name" "${DIR_CACHE_EXCLUDES[@]}" || true
-  done
-
-  return 0
-}
-
-function save_directory_caches() {
-  [[ "$ENABLE_CACHE" = "true" ]] || return 0
-
-  local name
-  for name in "${S3_DIR_CACHES[@]}"; do
-    s3cache_save "$CACHE_DIRECTORY/$name" "node/$name" "${DIR_CACHE_EXCLUDES[@]}"
-  done
-
-  for name in ${S3_CACHE_EXTRA_DIRS:-}; do
-    s3cache_save "$CACHE_DIRECTORY/$name" "dir/$name" "${DIR_CACHE_EXCLUDES[@]}"
+  local key
+  for key in "${CACHE_KEYS[@]}"; do
+    [[ -n "$(ls -A "${CACHE_PATHS[$key]}" 2>/dev/null)" ]] && cache_local_hit "$key" "${CACHE_PATHS[$key]}"
   done
 
   return 0
@@ -277,11 +125,6 @@ export ENABLE_CACHE="${ENABLE_CACHE:-true}"
 export CACHE_DIRECTORY="${CACHE_DIRECTORY:-$(pwd)/$CACHE_DIR}"
 export CI=true
 
-# No-op fallbacks for the optional S3 cache tier.
-function s3cache_restore() { return 2; }
-function s3cache_save() { return 0; }
-function s3cache_announce() { return 0; }
-
 if [[ -d "$RUNTIME_DIR/plugins" ]]; then
   for f in "$RUNTIME_DIR"/plugins/*.sh; do
     [[ -f "$f" ]] && source "$f"
@@ -305,11 +148,7 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     fi
   fi
 
-  register_initialize_callback restore_directory_caches
-  register_teardown_callback save_directory_caches
-
-  # Announce the S3 tier once before running callbacks.
-  s3cache_announce
+  register_initialize_callback restore_cache_dirs
 
   # Callbacks run in parallel; `wait`'s exit status is the only signal that
   # one failed, and a failed runtime start must abort the task.
