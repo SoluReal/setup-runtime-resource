@@ -7,7 +7,7 @@ function node_get_dependencies() {
         # curl is needed for nvm on runtime
         BONUS="curl"
       fi
-      echo "ca-certificates libstdc++6 build-essential $BONUS"
+      echo "ca-certificates libstdc++6 libatomic1 build-essential $BONUS"
     else
       echo ""
     fi
