@@ -17,7 +17,7 @@ if [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]]; then
   ) &
   info_spinner "Installing nvm (node version manager)" "nvm installed (node version manager)" $!
 
-  echo "export NVM_DIR=$NVM_RUNTIME_DIR; source \$NVM_DIR/nvm.sh" >> $chroot_dir$RUNTIME_HOME/.bashrc
+  echo "export NVM_DIR=$NVM_RUNTIME_DIR; source \$NVM_DIR/nvm.sh" >> "$RUNTIME_BASHRC"
 
   cp "$ROOT_DIR/includes/nvm.sh" "$chroot_dir/$RUNTIME_DIR/plugins/nvm.sh"
 fi

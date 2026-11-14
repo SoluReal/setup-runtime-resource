@@ -36,11 +36,11 @@ function info_spinner() {
   local spin='|/-\'
   local status
 
-  if [ "$VERBOSE" = "true" ]; then
+  # \r spinners from parallel runtime groups would garble the log, so they log plain lines.
+  if [ "$VERBOSE" = "true" ] || [ "$SETUP_PARALLEL" = "true" ]; then
     info_to_output_file "$progress_message"
     wait "$pid"
     status=$?
-    printf "\n" >> $OUTPUT_FILE
     info_to_output_file "$finished_message"
   else
     while kill -0 "$pid" 2>/dev/null; do
