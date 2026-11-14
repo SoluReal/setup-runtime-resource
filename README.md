@@ -104,7 +104,7 @@ The one exception is `testcontainers.enabled: true` with `testcontainers.rootles
 that combination still runs the task as `root`. Prefer
 [rootless testcontainers](#rootless-testcontainers) instead.
 
-The rootfs has no package manager: the dpkg database and apt are removed during the build, so neither the `hook` nor
+The rootfs has no working package manager: the dpkg database is removed during the build, so neither the `hook` nor
 a task can `apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
 
 ## Minimal image
@@ -118,6 +118,7 @@ run code, but is not safe to remove unconditionally for every user:
   used by `go build`, `go test`, or `go vet` on your code.
 - Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
   `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
+- apt and dpkg's helper tools (`apt-get`, `dpkg-*`), which can't run anyway without the dpkg database.
 
 This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
 actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
