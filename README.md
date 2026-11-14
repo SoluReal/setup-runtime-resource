@@ -372,6 +372,10 @@ image build time, so there is no environment variable that moves it onto the cac
 runs for some *other* version is redone on every build. Ask for it in `source` instead and it is built once, when
 the rootfs is.
 
+Because the caches are used in place they only grow. Set the task param `MAX_CACHE_SIZE_MB` to clear the whole
+cache directory at the end of a build that leaves it larger than that. Archives and tool directories left behind by
+older versions of this resource are removed at task start.
+
 ### Reading the cache log
 
 A build logs what it moved. There are no lines reporting zero of something, so a first build against empty caches
@@ -387,7 +391,6 @@ prints almost nothing here:
 | Value | Meaning |
 | --- | --- |
 | `local` | The Concourse task cache already held it. No network call was made - the fast path. |
-| `rootfs` | It came with the image, baked in at `in` time - the [Docker image cache](#docker-image-cache). |
 
 A key with no line against it had nothing cached anywhere, and whatever it covers is about to be downloaded from
 upstream.

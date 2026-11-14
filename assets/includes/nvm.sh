@@ -1,15 +1,10 @@
 #!/bin/bash
 
-# The node package managers keep their stores in the task cache. This lives here
-# rather than in bashrc.sh so that an image without node never configures them,
-# never restores them, and never announces a `node/*` key it has no use for.
+# Here rather than in bashrc.sh so an image without node never announces a `node/*` key.
 if [[ "$ENABLE_CACHE" = "true" ]]; then
   export NPM_CONFIG_CACHE="$CACHE_DIRECTORY/npm"
   export YARN_CACHE_FOLDER="$CACHE_DIRECTORY/yarn"
-  # pnpm has no PNPM_STORE_PATH; it takes `store-dir` through npm's config
-  # resolution, so the env spelling is the lowercase npm_config_ one. pnpm
-  # appends its store version, giving $CACHE_DIRECTORY/pnpm/v3 - still under the
-  # directory the `pnpm` cache key syncs. npm ignores the unknown key silently.
+  # pnpm ignores PNPM_STORE_PATH; it reads `store-dir` via npm config resolution.
   export npm_config_store_dir="$CACHE_DIRECTORY/pnpm"
 
   register_cache_dir node/npm "$NPM_CONFIG_CACHE"

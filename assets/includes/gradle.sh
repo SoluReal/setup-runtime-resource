@@ -8,9 +8,7 @@ function prepare_gradle_config() {
   cat <<EOF > "$GRADLE_USER_HOME"/gradle.properties
 org.gradle.caching=true
 org.gradle.parallel=true
-# The configuration cache lives in the project cache dir, which defaults to
-# <project>/.gradle - a fresh checkout on every CI build, so it would never be
-# reused.
+# The default <project>/.gradle is a fresh checkout every build, so the config cache would never be reused.
 org.gradle.projectcachedir=$GRADLE_USER_HOME
 EOF
   # Overwrite gradle.properties with GRADLE_PROP_ environment variables
@@ -24,8 +22,7 @@ EOF
   done < <(env)
 }
 
-# caches/jars-9, build-cache-1 and configuration-cache are deliberately absent:
-# all three are derived, and tied to a Gradle version or a checkout path.
+# Logging only: all of GRADLE_USER_HOME persists, but only downloads are worth reporting.
 register_cache_dir gradle/modules-2 "$GRADLE_USER_HOME/caches/modules-2"
 register_cache_dir gradle/wrapper-dists "$GRADLE_USER_HOME/wrapper/dists"
 

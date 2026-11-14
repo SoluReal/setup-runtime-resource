@@ -145,16 +145,9 @@ mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
   info "Running custom hook..."
-  # .bashrc runs the runtime initialize callbacks. At image build time
-  # $CACHE_DIRECTORY is a throwaway directory inside the chroot that is deleted
-  # a few lines below, so caching stays off here - there is nothing worth
-  # restoring into it, least of all over the network.
-  ENABLE_CACHE=false log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
+  log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
   info "Custom hook finished"
 fi
-
-# The chroot's own throwaway cache directory, not the task cache mount.
-rm -rf "$dest/rootfs/cache"
 
 set_env "BASH_ENV=$RUNTIME_HOME/.bashrc"
 set_env "HOME=$RUNTIME_HOME"

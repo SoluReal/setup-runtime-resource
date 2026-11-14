@@ -30,15 +30,7 @@ function cache_file_count() {
   find "$dir" -type f 2>/dev/null | wc -l | tr -d ' '
 }
 
-function cache_file_size() {
-  local path="$1"
-  [[ -e "$path" ]] || { echo 0; return 0; }
-  du -sh "$path" 2>/dev/null | cut -f1
-}
-
-# Callers reach here on a non-empty directory, but a directory holding only empty
-# subdirectories still counts zero files - and a cache reporting zero of
-# something says nothing worth reading.
+# A cache never reports zero of something, so a directory of only empty dirs logs nothing.
 function cache_local_hit() {
   local files
   files="$(cache_file_count "$2")"
@@ -86,10 +78,32 @@ function restore_cache_dirs() {
 
   local key
   for key in "${CACHE_KEYS[@]}"; do
-    [[ -n "$(ls -A "${CACHE_PATHS[$key]}" 2>/dev/null)" ]] && cache_local_hit "$key" "${CACHE_PATHS[$key]}"
+    cache_local_hit "$key" "${CACHE_PATHS[$key]}"
   done
 
   return 0
+}
+
+# In-place caches only grow, so MAX_CACHE_SIZE_MB is the one bound on worker disk.
+function prune_oversized_cache() {
+  [[ -n "${MAX_CACHE_SIZE_MB:-}" && -d "$CACHE_DIRECTORY" ]] || return 0
+  if ! [[ "$MAX_CACHE_SIZE_MB" =~ ^[0-9]+$ ]]; then
+    error "MAX_CACHE_SIZE_MB must be a whole number of megabytes, got '$MAX_CACHE_SIZE_MB'"
+    return 1
+  fi
+
+  local size_mb
+  size_mb=$(du -sm "$CACHE_DIRECTORY" | cut -f1)
+  if (( size_mb > MAX_CACHE_SIZE_MB )); then
+    info "Cache is ${size_mb} MB, above MAX_CACHE_SIZE_MB=$MAX_CACHE_SIZE_MB; clearing $CACHE_DIRECTORY"
+    clear_cache_directory
+  fi
+}
+
+# Caches written before in-place caching: lz4 archives and the tool dirs now baked into the rootfs.
+function remove_legacy_cache_layout() {
+  rm -rf "$CACHE_DIRECTORY"/gradle/archive.tar.lz4 "$CACHE_DIRECTORY"/maven/archive.tar.lz4 \
+    "$CACHE_DIRECTORY"/sdkman "$CACHE_DIRECTORY"/nvm "$CACHE_DIRECTORY"/pyenv "$CACHE_DIRECTORY"/corepack
 }
 
 function teardown_setup_runtime() {
@@ -109,6 +123,8 @@ function teardown_setup_runtime() {
         wait "$_pid"
       done
       unset _pids _pid
+
+      prune_oversized_cache
 
       if [[ "$DEBUG" = "true" && -d "$CACHE_DIRECTORY" ]]; then
         info "Cache size in $CACHE_DIRECTORY:"
@@ -141,6 +157,7 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
 
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     mkdir -p "$CACHE_DIRECTORY"
+    remove_legacy_cache_layout
 
     if [[ "$DEBUG" = "true" ]]; then
       info "Cache size in $CACHE_DIRECTORY:"

@@ -1,3 +1,8 @@
 sdkman:
   enabled: true
+# Matches example/maven/.sdkmanrc, so `sdk env install` finds both in the rootfs.
+java:
+  version: 21.0.4-tem
+maven:
+  version: 3.9.9
 verbose: true

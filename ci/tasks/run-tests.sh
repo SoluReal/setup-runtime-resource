@@ -90,7 +90,10 @@ function run_test() {
   echo "=================================================================="
 
   # Start with a cold task cache; the first run populates it.
-  fly clear-task-cache -j "$PIPELINE/$job" --step "$TEST_STEP" -n || true
+  if ! fly clear-task-cache -j "$PIPELINE/$job" --step "$TEST_STEP" -n; then
+    echo "$job: could not clear the task cache, so run 1 would not start cold"
+    return 1
+  fi
 
   local run log
   for (( run = 1; run <= RUNS; run++ )); do

@@ -32,20 +32,16 @@ function start_docker_daemon() {
 }
 
 function restore_docker_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_DIR/docker" ]]; then
-    info "Restoring docker images"
-    docker_load_cache
-    # These images came with the resource image. Silent when there are none, so
-    # that an empty cache does not report itself.
-    local images
-    images="$(ls -1 "$RUNTIME_DIR/docker" 2>/dev/null | wc -l | tr -d ' ')"
-    if (( images > 0 )); then
-      cache_event "restore docker-images from=rootfs images=$images"
-    fi
-  fi
+  [[ "$ENABLE_CACHE" = "true" ]] || return 0
 
-  # This is an initialize callback and the runner aborts the task on a non-zero
-  # one, so never let the last condition above decide the exit status.
+  info "Restoring docker images"
+  docker_load_cache
+  # Counted after loading: docker_load_cache discards corrupt tars.
+  local images
+  images="$(find "$DOCKER_CACHE_DIR" -maxdepth 1 -name '*.tar' 2>/dev/null | wc -l | tr -d ' ')"
+  if (( images > 0 )); then
+    cache_event "restore docker-images from=local images=$images"
+  fi
   return 0
 }
 

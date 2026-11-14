@@ -38,7 +38,7 @@ Caching invariants:
   redo every build (hence `SKIP_CACHE_CHECK` in `rc-files` and `python`).
 - `create_m2_dir` writes settings.xml to both `~/.m2` and `$MAVEN_USER_HOME`; keep both.
 - pnpm's store var is `npm_config_store_dir` (`PNPM_STORE_PATH` does nothing).
-- `assets/in` runs the build-time chroot with `ENABLE_CACHE=false`.
+- The `hook` runs before `bashrc.sh` is appended to `.bashrc`, so no plugin (or cache) is active in it.
 
 ## CI (`ci/pipeline.yml`)
 
