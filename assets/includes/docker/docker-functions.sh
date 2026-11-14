@@ -18,7 +18,6 @@ sanitize_cgroups() {
   # See: https://github.com/moby/moby/commit/de191e86321f7d3136ff42ff75826b8107399497
   export container=docker
 
-  # Mount /sys/kernel/security
   if [[ -d /sys/kernel/security ]] && ! mountpoint -q /sys/kernel/security; then
     if ! mount -t securityfs none /sys/kernel/security; then
       echo >&2 "Could not mount /sys/kernel/security."
@@ -28,13 +27,11 @@ sanitize_cgroups() {
 
   sed -e 1d /proc/cgroups | while read sys hierarchy num enabled; do
     if [[ "${enabled}" != "1" ]]; then
-      # subsystem disabled; skip
       continue
     fi
 
     grouping="$(cat /proc/self/cgroup | cut -d: -f2 | grep "\\<${sys}\\>")" || true
     if [[ -z "${grouping}" ]]; then
-      # subsystem not mounted anywhere; mount it on its own
       grouping="${sys}"
     fi
 
@@ -66,7 +63,6 @@ sanitize_cgroups() {
   fi
 }
 
-# Setup container environment and start docker daemon in the background.
 start_docker() {
   echo >&2 "Setting up Testcontainers environment..."
   mkdir -p /var/log > /dev/null
@@ -76,14 +72,12 @@ start_docker() {
     sanitize_cgroups
   fi
 
-  # check for /proc/sys being mounted readonly, as systemd does
   if grep '/proc/sys\s\+\w\+\s\+ro,' /proc/mounts >/dev/null; then
     mount -o remount,rw /proc/sys
   fi
 
   local docker_opts="${DOCKER_OPTS:-}"
 
-  # Pass through `--garden-mtu` from gardian container
   if [[ "${docker_opts}" != *'--mtu'* ]]; then
     local mtu="$(cat /sys/class/net/$(ip route get 8.8.8.8|awk '{ print $5 }')/mtu)"
     docker_opts+=" --mtu ${mtu}"
@@ -102,8 +96,6 @@ start_docker() {
   echo "$!" > "${CONTAINER_RUNTIME_PID_FILE}"
 }
 
-# Wait for docker daemon to be healthy
-# Timeout after CONTAINER_RUNTIME_TIMEOUT seconds
 await_docker() {
   local timeout="${CONTAINER_RUNTIME_TIMEOUT}"
   echo >&2 "Waiting ${timeout} seconds for Docker to be available..."
@@ -130,20 +122,12 @@ await_docker() {
   done
 }
 
-# Print this build's container events, one JSON object per line.
-#
-# --since 0 reads from the start of the daemon's event history rather than from
-# a recorded timestamp. dockerd is started fresh for every build, so its whole
-# history is this build's events.
-#
-# --until bounds the range and is what stops `docker events` from streaming
-# forever; docker has no --stream flag, so unlike the podman version this one
-# cannot simply be left off.
+# --since 0: dockerd is fresh per build, so its whole history is this build's events.
+# --until is what stops `docker events` streaming forever; docker has no --stream flag.
 container_events() {
   docker events --since 0 --until "$(date +%s)" --format '{{json .}}'
 }
 
-# Gracefully stop Docker daemon.
 stop_docker() {
   if ! [[ -f "${CONTAINER_RUNTIME_PID_FILE}" ]]; then
     return 0

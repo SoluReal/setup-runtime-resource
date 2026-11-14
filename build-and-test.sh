@@ -2,27 +2,15 @@
 
 set -euo pipefail
 
-# Builds the resource image and runs the example tests against a local Concourse
-# stack (docker-compose.yml).
-#
-#   ./build-and-test.sh                 # every test
-#   TEST=maven ./build-and-test.sh      # one test
-#   TEST="maven gradle" ./build-and-test.sh
-#
-# Each test is a directory under example/tests/ holding a source.yml (the
-# resource `source`), a task.yml (the task config) and an optional test.env with
-# per-test knobs. This script only deploys the pipeline and starts its `test`
-# job; that job runs ci/tasks/run-tests.sh, which is the same script CI runs, so
-# a test passing here is a test passing there.
+# Builds the resource image and starts the `test` job on the local stack; that job runs the same
+# ci/tasks/run-tests.sh as CI, so a test passing here passes there.
 
 TESTS_DIR="example/tests"
 PIPELINE="${PIPELINE:-setup-runtime}"
 
-# Empty runs every test.
 TEST="${TEST:-}"
 
 # full|fuse-only|ignore - what `privileged: true` tasks get on the local worker.
-# e.g. CONCOURSE_CONTAINERD_PRIVILEGED_MODE=fuse-only ./build-and-test.sh
 export CONCOURSE_CONTAINERD_PRIVILEGED_MODE="${CONCOURSE_CONTAINERD_PRIVILEGED_MODE:-full}"
 
 available_tests() {
@@ -44,9 +32,8 @@ echo "Running setup-runtime tests: ${TEST:-all}"
 
 docker-compose -p concource-resource -f docker-compose.yml build git-server
 docker-compose -p concource-resource -f docker-compose.yml up -d
-# The git-server builds its repository from the mounted working tree when the
-# container starts, so without this a test would run against whatever the tree
-# looked like the last time the stack came up.
+# The git-server builds its repo from the working tree at container start, so recreate it
+# or tests run against a stale tree.
 docker-compose -p concource-resource -f docker-compose.yml up -d --force-recreate git-server
 
 HASH="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8; echo)"
@@ -62,10 +49,8 @@ do
   sleep 5
 done
 
-# One var per test, holding that test's source.yml verbatim - the same thing the
-# deploying pipeline does for ci/pipeline.yml, so both pipelines read the same
-# files. The two rewrites below exist only because this stack differs from the
-# cluster CI runs on.
+# One var per test holding its source.yml verbatim, as the deploying pipeline does for
+# ci/pipeline.yml. The two rewrites below exist because this stack differs from CI's cluster.
 source_vars=()
 for dir in "$TESTS_DIR"/*/; do
   name="$(basename "$dir")"
@@ -97,11 +82,8 @@ fly -t test set-pipeline -c example/pipeline.yml -p "$PIPELINE" -n \
 
 fly -t test unpause-pipeline -p "$PIPELINE"
 
-# The git-server was just recreated, so its old commits are gone with it.
 # -n, not `echo y |`: fly reads its confirmation from /dev/tty, so a piped answer
 # is ignored - it then either bails out or, when a tty is present, blocks forever.
 fly -t test clear-versions --resource="$PIPELINE/repo" -n || true
 
-# Everything else - clearing task caches, the two runs per test, the assertions -
-# happens inside this job, on the worker, exactly as it does in CI.
 fly -t test trigger-job -j "$PIPELINE/test" --watch

@@ -1,11 +1,8 @@
-# File is included in the bashrc file and is expected to be executed on task startup.
 
-# Reset
-export Color_Off='\033[0m' # Text Reset
+export Color_Off='\033[0m'
 
-# To print to console with colors
-export Red='\033[0;31m'    # Red
-export Green='\033[0;32m'  # Green
+export Red='\033[0;31m'
+export Green='\033[0;32m'
 export RUNTIME_DIR="/var/runtimes"
 export RUNTIME_USER="runtime"
 export RUNTIME_HOME="/home/$RUNTIME_USER"
@@ -61,10 +58,8 @@ function clear_cache_directory() {
   find "$CACHE_DIRECTORY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
 }
 
-# register_cache_dir <key> <dir>
-#
-# Filled by the runtime plugins, so an image without a tool never announces its
-# key. Only used to log what the task cache already held.
+# register_cache_dir <key> <dir>: each plugin registers its own keys, so an image without a
+# tool never announces its key. Only used to log what the task cache already held.
 CACHE_KEYS=()
 declare -A CACHE_PATHS=()
 
@@ -100,7 +95,7 @@ function prune_oversized_cache() {
   fi
 }
 
-# Caches written before in-place caching: lz4 archives and the tool dirs now baked into the rootfs.
+# Remove legacy lz4 archives and tool dirs that now live in the rootfs.
 function remove_legacy_cache_layout() {
   rm -rf "$CACHE_DIRECTORY"/gradle/archive.tar.lz4 "$CACHE_DIRECTORY"/maven/archive.tar.lz4 \
     "$CACHE_DIRECTORY"/sdkman "$CACHE_DIRECTORY"/nvm "$CACHE_DIRECTORY"/pyenv "$CACHE_DIRECTORY"/corepack
@@ -147,7 +142,7 @@ if [[ -d "$RUNTIME_DIR/plugins" ]]; then
   done
 fi
 
-# Store the main pid so we can make sure that we only execute the traps on the main bash process.
+# Main pid, so traps run only in the main bash process.
 if [[ ! -f /tmp/main_pid ]]; then
   echo $$ > /tmp/main_pid
 fi

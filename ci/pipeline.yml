@@ -1,7 +1,7 @@
 # The test job is the release gate and starts the test jobs.
 release-gate: &release_gate [ test ]
 
-# These tests can block a release; experimental tests run separately.
+# Experimental tests run separately and cannot block a release.
 gating-tests: &gating_tests full simple gradle maven nodejs python rc-files
 
 resources:
@@ -48,14 +48,12 @@ resources:
       repository: setup-runtime-resource
       access_token: ((github-apitoken))
 
-  # Broad smoke test; source comes from the test directory.
   - name: setup-runtime-full
     type: setup-runtime-resource
     icon: account-hard-hat
     source:
       ((SOURCE_FULL))
 
-  # One resource for each test directory.
   - name: setup-runtime-simple
     type: setup-runtime-resource
     icon: account-hard-hat
@@ -138,7 +136,6 @@ jobs:
         params:
           image: image/image
 
-  # Release gate; run each gating test twice to verify cache restoration.
   - name: test
     serial: true
     plan:
@@ -149,17 +146,14 @@ jobs:
         - get: repo
           passed: [ build ]
       - task: run-tests
-        # Reuse the image built by the build job.
         image: setup-runtime-resource-dev
         file: repo/ci/tasks/run-tests.yml
         params:
           FLY_USERNAME: ((fly-username))
           FLY_PASSWORD: ((fly-password))
-          # Name of this pipeline.
           PIPELINE: setup-runtime-resource
           TESTS: *gating_tests
 
-  # Experimental tests run separately and cannot block a release.
   - name: test-experimental
     serial: true
     plan:
@@ -177,7 +171,6 @@ jobs:
           PIPELINE: setup-runtime-resource
           TESTS: testcontainers-rootless
 
-  # Each test directory has a manually triggered job.
   - name: test-full
     serial: true
     plan:
@@ -295,7 +288,6 @@ jobs:
               repository: concourse/oci-build-task
           params:
             IMAGE_PLATFORM: linux/arm64 # ,linux/amd64 disabled for speed now.
-#            OUTPUT_OCI: true
             UNPACK_ROOTFS: true
           caches:
             - path: cache
@@ -313,7 +305,6 @@ jobs:
       - task: test-image
         image: setup-runtime-full
         privileged: true
-        # PRs run one cold smoke test.
         file: pr-source/example/tests/full/task.yml
         input_mapping: { repo: pr-source }
     on_success:

@@ -11,7 +11,6 @@ caches:
 params:
   DEBUG: true
   ENABLE_CACHE: true
-  # The repository input contains the example projects.
   PROJECTS_DIR: example
 
 run:
@@ -52,13 +51,11 @@ run:
       sleep 5
       docker stop nginx-server
 
-      # Do the hooks work?
       gomplate --version | assert_contains "gomplate version 4.3.3"
       curl --help | assert_contains "Usage: curl [options...]"
       wget --help | assert_contains "Usage: wget [OPTION]"
       git --version | assert_contains "git version 2"
 
-      # Test rc files
       echo "v25.2.1" > .nvmrc
       echo "java=21.0.4-tem" > .sdkmanrc
 
@@ -67,7 +64,6 @@ run:
 
       node --version | assert_contains "25.2.1"
 
-      # Reload ~/.bashrc so the selected versions are on PATH.
       source ~/.bashrc
       java --version | assert_contains "openjdk 21"
 
@@ -84,19 +80,16 @@ run:
       python --version | assert_contains "Python 3.12.2"
       go version | assert_contains "go version go1.22.1"
 
-      # Verify that Gradle uses the task cache.
       echo "$GRADLE_USER_HOME" | assert_contains "$CACHE_DIRECTORY/gradle"
       cat "$GRADLE_USER_HOME/gradle.properties" | assert_contains "org.gradle.caching=true"
 
-      # Verify that Maven uses the task cache.
       echo "$MAVEN_USER_HOME" | assert_contains "$CACHE_DIRECTORY/maven"
       echo "$MAVEN_LOCAL_REPO" | assert_contains "$CACHE_DIRECTORY/maven/repository"
       cat "$RUNTIME_HOME/.m2/settings.xml" | assert_contains "<localRepository>$MAVEN_LOCAL_REPO</localRepository>"
 
-      # Verify that bash -c doesn't start saving the cache (verify unset BASH_ENV)
+      # BASH_ENV must be unset so bash -c doesn't start saving the cache.
       bash -c "echo hi" | assert_not_contains "Saving"
 
-      # Verify that nvm works in bash -c
       bash -c "nvm --version" | assert_contains "0.40.3"
 
       echo "=== fetching a real Spring Boot + Testcontainers project ==="

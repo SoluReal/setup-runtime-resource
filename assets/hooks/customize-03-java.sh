@@ -16,10 +16,7 @@ if [[ -n "$java_version" ]]; then
     add_metadata "java" "$version"
   done
 
-  # Install default version
   if [[ "$java_version" =~ ^[0-9]+$ ]]; then
-    # Use eclipse temurin as the default version
-    # If Temurin doesn't work for you, specify the vendor yourself
     install_java="$java_version-tem"
   else
     install_java="$java_version"

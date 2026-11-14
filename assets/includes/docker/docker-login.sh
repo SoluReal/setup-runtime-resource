@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# Logs in to zero or more registries using numbered task params:
-# DOCKER_LOGIN_1_REGISTRY / DOCKER_LOGIN_1_USERNAME / DOCKER_LOGIN_1_PASSWORD,
-# DOCKER_LOGIN_2_REGISTRY / ... and so on, stopping at the first missing index.
-# Works for both dockerd and the rootless podman-docker shim, since both
-# implement `docker login`.
 function login_docker_registries() {
   local i=1
   local registry_var username_var password_var registry username

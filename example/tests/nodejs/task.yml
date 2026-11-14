@@ -8,7 +8,6 @@ caches:
 
 params:
   DEBUG: true
-  # The repository input contains the example projects.
   PROJECTS_DIR: example
 
 run:

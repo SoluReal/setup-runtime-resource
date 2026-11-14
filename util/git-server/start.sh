@@ -2,7 +2,6 @@
 
 set -e
 
-# Initialize a bare repository if it doesn't exist
 REPO_DIR="/tmp/repos/example.git"
 if [ ! -d "$REPO_DIR" ]; then
     git init --bare "$REPO_DIR"
@@ -13,7 +12,6 @@ fi
 git config --global user.email "you@example.com"
 git config --global user.name "Your Name"
 
-# Do an initial commit
 TEMP_DIR=$(mktemp -d)
 git clone "$REPO_DIR" "$TEMP_DIR"
 cd "$TEMP_DIR"
@@ -27,7 +25,6 @@ mkdir -p /etc/lighttpd
 
 chmod -R 755 /tmp/repos
 
-# Configure lighttpd for git-http-backend
 cat > /etc/lighttpd/lighttpd.conf <<EOF
 server.modules = (
     "mod_access",
@@ -44,5 +41,4 @@ alias.url = ( "" => "/usr/libexec/git-core/git-http-backend" )
 cgi.assign = ( "" => "" )
 EOF
 
-# Start lighttpd
 lighttpd -D -f /etc/lighttpd/lighttpd.conf

@@ -1,18 +1,8 @@
-# The local pipeline, deployed by ../build-and-test.sh against the
-# docker-compose.yml stack. It is ci/pipeline.yml minus everything that only
-# makes sense on a real Concourse (publishing, versioning, PRs): the same test
-# jobs, driven by the same ci/tasks/run-tests.sh.
-#
-#   ./build-and-test.sh              # every test under example/tests/
-#   TEST=maven ./build-and-test.sh   # one specific test
-#
-# Every test-* job is manual on purpose. The `test` job below is what starts
-# them, twice each, because a test that has never restored a cache has only
-# tested half of this resource.
+# ci/pipeline.yml minus publishing, deployed by ../build-and-test.sh against docker-compose.yml.
+# test-* jobs are manual because the `test` job runs each twice to verify cache restoration.
 resource_types:
 - name: setup-runtime-resource
   type: registry-image
-  # Running with privileged is not required and is not recommended for production use.
   privileged: true
   source:
     repository: registry:5000/setup-runtime-resource
@@ -20,9 +10,8 @@ resource_types:
     insecure: true
 
 resources:
-# The image the `test` job's own task runs in - it needs bash and curl, and this
-# one is being tested anyway. Not a `setup-runtime-resource`: that would build a
-# whole rootfs for a task that only shells out to fly.
+# Image for the `test` job's task: it needs bash and curl, and building a rootfs just to run fly
+# would be wasteful.
 - name: setup-runtime-image
   type: registry-image
   icon: docker
@@ -31,10 +20,8 @@ resources:
     tag: ((setup-runtime-resource-tag))
     insecure: true
 
-# One resource per directory under example/tests/, each configured from that
-# directory's source.yml. build-and-test.sh reads the files and passes them in as
-# these vars, exactly as the deploying pipeline does for ci/pipeline.yml, so the
-# file in this repo stays the single definition of a test's runtime.
+# One resource per example/tests/<dir>, configured from that dir's source.yml, which
+# build-and-test.sh passes in as vars (as for ci/pipeline.yml).
 - name: setup-runtime-full
   type: setup-runtime-resource
   icon: account-hard-hat
@@ -83,8 +70,7 @@ resources:
   source:
     ((SOURCE_TESTCONTAINERS_ROOTLESS))
 
-# The git-server container serves this repository, so `repo` is laid out exactly
-# as CI's git resource is and the tasks are the same files at the same paths.
+# The git-server serves this repository, so `repo` is laid out as in CI.
 - name: repo
   type: git
   source:
@@ -101,14 +87,10 @@ jobs:
     image: setup-runtime-image
     file: repo/ci/tasks/run-tests.yml
     params:
-      # Local credentials; CI supplies its own.
       FLY_USERNAME: test
       FLY_PASSWORD: test
-      # URL reachable by tasks.
       FLY_API_URL: http://web:8080
-      # Pipeline name used by build-and-test.sh.
       PIPELINE: setup-runtime
-      # Empty runs every test.
       TESTS: ((tests))
 
 # Everything below is triggered by the `test` job above, never on its own.

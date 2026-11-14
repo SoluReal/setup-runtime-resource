@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# Reset
-export Color_Off='\033[0m' # Text Reset
+export Color_Off='\033[0m'
 
-# To print to console with colors
-export Red='\033[0;31m'    # Red
-export Green='\033[0;32m'  # Green
+export Red='\033[0;31m'
+export Green='\033[0;32m'
 
 export RUNTIME_DIR="/var/runtimes"
 export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
@@ -17,7 +15,6 @@ export RUNTIME_USER="runtime"
 export RUNTIME_UID=1000
 export RUNTIME_HOME="/home/$RUNTIME_USER"
 
-# Compute a deterministic hash of the .source from stdin JSON
 compute_hash() {
   local json="$1"
   echo "$json" | jq -c .source | sha256sum | awk '{print $1}'
@@ -65,7 +62,6 @@ function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
 }
 
-# Runs curl with retries configured via the `dependency_download_retries`.
 function curl_retry() {
   local max_retries="${dependency_download_retries:-0}"
   local retry_args=()
@@ -82,7 +78,6 @@ chroot_exec() {
     local rootfs="${1}"
     shift
     local cmd="$*"
-    # Use fakechroot to simulate chroot.
     fakechroot chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
 }
 

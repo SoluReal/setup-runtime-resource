@@ -14,12 +14,8 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
     add_metadata "testcontainers-rootless" "true"
     set_env "TESTCONTAINERS_ROOTLESS=true"
 
-    # The runtime user and its subuid/subgid ranges are created for every
-    # rootfs in customize-00-runtime-user.sh, since tasks now run as that user
-    # regardless of whether testcontainers is enabled.
-
-    # podman-docker's `docker` shim prints "Emulate Docker CLI using podman..."
-    # on every single call; this file is the documented way to silence it.
+    # podman-docker's `docker` shim prints an "Emulate Docker CLI" notice on every call;
+    # this file is the documented way to silence it.
     mkdir -p "$chroot_dir/etc/containers"
     touch "$chroot_dir/etc/containers/nodocker"
   fi

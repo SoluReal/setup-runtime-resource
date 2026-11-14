@@ -3,11 +3,8 @@ set -eo pipefail
 
 source $(dirname $0)/common.sh
 
-# Read the request JSON
 request=$(jq -c .)
 
-# Compute hash using common function
 hash=$(compute_hash "$request")
 
-# Output the version object with the hash
 jq -n --arg hash "$hash" '[{ "hash": $hash }]'

@@ -8,7 +8,6 @@ caches:
 
 params:
   DEBUG: true
-  # The repository input contains the example projects.
   PROJECTS_DIR: example
 
 run:
@@ -18,6 +17,5 @@ run:
     - |
       source "repo/$PROJECTS_DIR/tests/assert.sh"
 
-      # The smallest useful runtime: nodejs with a pinned yarn and nothing else.
       which yarn | assert_contains "yarn"
       yarn --version | assert_contains "4.10.2"

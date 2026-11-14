@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Rootless equivalent of docker-functions.sh. This uses podman instead
-# since podman can run rootless and is daemonless making it a good lightweight alternative.
-
 export XDG_RUNTIME_DIR="$HOME/.run"
 PODMAN_SOCKET="${XDG_RUNTIME_DIR}/podman/podman.sock"
 PODMAN_SOCKET_DIR="$(dirname "$PODMAN_SOCKET")"
@@ -17,8 +14,8 @@ export TESTCONTAINERS_RYUK_DISABLED="${TESTCONTAINERS_RYUK_DISABLED:-true}"
 start_docker() {
   info "Setting up rootless Testcontainers environment (podman)..."
 
-  # pasta needs /dev/net/tun for published ports. No image ships it and mknod
-  # needs root, so the worker must provide it. Not fatal - podman still runs.
+  # pasta needs /dev/net/tun for published ports; mknod needs root, so the worker must provide
+  # it. Not fatal: podman still runs.
   if [[ ! -e /dev/net/tun ]]; then
     error "/dev/net/tun is missing - rootless container networking (published ports) will not work."
     error "The worker must provide this device (see README: worker requirements)."
@@ -35,8 +32,6 @@ start_docker() {
   echo "$!" > "${CONTAINER_RUNTIME_PID_FILE}"
 }
 
-# Wait for the rootless podman socket to be healthy.
-# Timeout after CONTAINER_RUNTIME_TIMEOUT seconds
 await_docker() {
   local timeout="${CONTAINER_RUNTIME_TIMEOUT}"
   info "Waiting ${timeout} seconds for rootless podman socket to be available..."
@@ -69,7 +64,6 @@ container_events() {
   podman events --since 0 --stream=false --format '{{json .}}'
 }
 
-# Gracefully stop the rootless podman API service.
 stop_docker() {
   if [[ -f "${CONTAINER_RUNTIME_PID_FILE}" ]]; then
     local docker_pid="$(cat ${CONTAINER_RUNTIME_PID_FILE})"

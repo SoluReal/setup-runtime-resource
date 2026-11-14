@@ -12,9 +12,7 @@ export CONTAINER_RUNTIME_PID_FILE="/tmp/container-runtime.pid"
 export CONTAINER_RUNTIME_LOG_FILE="/tmp/container-runtime.log"
 
 function start_docker_daemon() {
-  # Waits CONTAINER_RUNTIME_TIMEOUT seconds for startup (default: 60).
   CONTAINER_RUNTIME_TIMEOUT="${CONTAINER_RUNTIME_TIMEOUT:-60}"
-  # Accepts optional DOCKER_OPTS (default: --data-root /scratch/docker)
   DOCKER_OPTS="${DOCKER_OPTS:-}"
 
   export DOCKER_OPTS

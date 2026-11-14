@@ -8,7 +8,6 @@ caches:
 
 params:
   DEBUG: true
-  # The repository input contains the example projects.
   PROJECTS_DIR: example
 
 run:
@@ -20,12 +19,9 @@ run:
 
       pushd "repo/$PROJECTS_DIR/python"
 
-      # Install the python version specified in .python-version
       pyenv install --skip-existing
 
-      # Set up virtualenv or just install dependencies
       pip install -r requirements.txt
 
-      # Run tests
       export PYTHONPATH=$PYTHONPATH:$(pwd)/src
       pytest

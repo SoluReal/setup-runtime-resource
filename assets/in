@@ -71,7 +71,6 @@ if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true"
   curl_retry -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
 
-  # Add the repository to Apt sources:
   tee /etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/debian
@@ -81,8 +80,8 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 fi
 
-# Prefer mmdebstrap's unshare mode over its own "auto" euid=0 heuristic which falls back to root.
-# In case unshare doesn't work we fallback to fakechroot.
+# Prefer unshare over mmdebstrap's "auto" euid=0 heuristic, which falls back to root;
+# fakechroot is the fallback when unshare doesn't work.
 mount_probe_dir=$(mktemp -d)
 if unshare --user --map-root-user --mount -- \
     mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
@@ -161,8 +160,7 @@ fi
 
 add_metadata "user" "$task_user"
 
-# Define env vars to load the bash profile in non interactive shells
-# Add cache environment variables so caching is straightforward
+# BASH_ENV makes non-interactive shells load the bash profile.
 jq -n "{
   env: [$(sed 's/.*/\"&\"/' /tmp/env_vars | tr '\n' ',' | sed 's/,$//')],
   user: \"$task_user\"}
@@ -172,9 +170,8 @@ log_on_error cat "$dest/metadata.json"
 
 add_trap teardown_setup_runtime EXIT
 
-# Add all our traps to one function since bash can only have one trap directive.
-# Since multiple sub-bash processes can be started we have to make sure that only the main process handles the trap.
-# This is done by saving the pid of the main bash process and only run traps on main bash process.
+# bash allows one trap directive, so all traps run from one function, and only in the main
+# process (its pid is saved at startup) since sub-bashes would otherwise re-run them.
 for f in /tmp/traps_*; do
   if [[ -e "$f" ]]; then
     sig="${f#/tmp/traps_}"
@@ -202,7 +199,6 @@ touch /tmp/metadata || true
 
 METADATA=$(cat /tmp/metadata 2>/dev/null | tr -s '\n' ',' | sed 's/,$//')
 
-# Cleanup of nodejs if any.
 rm -rf /tmp/node-compile-cache
 
 jq -n \

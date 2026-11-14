@@ -18,7 +18,7 @@ function sdkman_install() {
   echo "sdkman_selfupdate_feature=false" > "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_answer=true" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_colour_enable=true" >> "$SDKMAN_DIR/etc/config"
-  # Auto_env doesn't seem to work so disabled (for now at least)
+  # sdkman_auto_env doesn't work here, so it is disabled.
   echo "sdkman_auto_env=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_complete=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_checksum_enable=true" >> "$SDKMAN_DIR/etc/config"

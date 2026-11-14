@@ -6,13 +6,11 @@ set -euo pipefail
 
 TESTS_DIR="${TESTS_DIR:-repo/example/tests}"
 
-# Test jobs are named test-<directory> and use the same task step.
 JOB_PREFIX="${JOB_PREFIX:-test-}"
 TEST_STEP="${TEST_STEP:-test-image}"
 
 RUNS="${RUNS:-2}"
 
-# Space-separated test names; empty means every directory under TESTS_DIR.
 TESTS="${TESTS:-}"
 
 # Task containers have the ATC URL but not BUILD_* metadata.
@@ -60,7 +58,6 @@ function available_tests() {
   done
 }
 
-# Return only output produced by the test task.
 function task_output() {
   local log="$1"
   if ! grep -qF "$TASK_START_MARKER" "$log"; then
@@ -71,13 +68,11 @@ function task_output() {
   awk -v marker="$TASK_START_MARKER" 'index($0, marker) { seen = 1 } seen' "$log"
 }
 
-# run_test <name>; returns non-zero with a reason on stdout when the test fails.
 function run_test() {
   local name="$1"
   local job="$JOB_PREFIX$name"
   local dir="$TESTS_DIR/$name"
 
-  # Reset per-test settings before loading the test configuration.
   local EXPECT_IN_OUTPUT=""
   local FORBID_IN_OUTPUT=""
   local SKIP_CACHE_CHECK="false"
@@ -100,7 +95,6 @@ function run_test() {
     log="$WORK_DIR/$name.$run.log"
     echo "--- $job: run $run of $RUNS"
 
-    # Propagate the watched build's status.
     if ! fly trigger-job -j "$PIPELINE/$job" --watch 2>&1 | tee "$log"; then
       echo "$job failed on run $run of $RUNS"
       return 1
@@ -117,14 +111,12 @@ function run_test() {
   local full_output
   full_output="$(cat "$log")"
 
-  # The second run should not download dependencies.
   if [[ "$SKIP_CACHE_CHECK" != "true" ]] && grep -Eq "Download|Pulling" <<< "$output"; then
     echo "$job downloaded on run $RUNS, so its caches were not reused:"
     grep -E "Download|Pulling" <<< "$output" | head -5
     return 1
   fi
 
-  # Tests can require or forbid specific cache events.
   local pattern
   while IFS= read -r pattern; do
     [[ -z "$pattern" ]] && continue
@@ -168,7 +160,6 @@ fi
 
 echo "Running ${#selected[@]} test(s), $RUNS runs each: ${selected[*]}"
 
-# Run all tests before reporting failures.
 declare -a failed=()
 for test_name in "${selected[@]}"; do
   run_test "$test_name" || failed+=("$test_name")

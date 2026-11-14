@@ -1,13 +1,7 @@
 #!/bin/bash
-# Shared assertion helpers, sourced as the first statement of every test task.
-# The `repo` input is mounted by every test and holds the whole repository, both
-# in CI and locally, so this file is always at "repo/$PROJECTS_DIR/tests/assert.sh".
 
-# Everything a build prints before this line came from the resource `get` that
-# built the runtime, not from the test. ci/tasks/run-tests.sh splits the build log
-# here so its "nothing was downloaded on the second run" check sees the task's
-# output only - a rootfs rebuild on a fresh worker downloads plenty, and says
-# nothing about whether the caches worked.
+# ci/tasks/run-tests.sh splits the build log here so its no-download check ignores the rootfs
+# build's downloads, which say nothing about the caches.
 echo ">>> TEST TASK START <<<"
 
 assert_contains() {

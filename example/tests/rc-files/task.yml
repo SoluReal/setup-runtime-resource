@@ -8,7 +8,6 @@ caches:
 
 params:
   DEBUG: true
-  # The repository input contains the example projects.
   PROJECTS_DIR: example
   GRADLE_PROP_org_gradle_parallel: false
 
@@ -27,7 +26,6 @@ run:
 
       node --version | assert_contains "25.2.1"
 
-      # Reload ~/.bashrc so the selected versions are on PATH.
       source ~/.bashrc
       java --version | assert_contains "openjdk 21.0.4"
       java --version | assert_contains "OpenJDK Runtime Environment Temurin-21.0.4"
