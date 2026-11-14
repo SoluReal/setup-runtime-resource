@@ -136,8 +136,8 @@ source:
 ```
 
 Downloads use curl's own `--retry`, which backs off exponentially between attempts (1s, 2s, 4s, ..., capped at 10
-minutes). The SDKMAN installer downloads without retries, so a failed SDKMAN install is rerun from scratch up to that
-many times, 5s apart.
+minutes). The SDKMAN installer, `sdk install`, `nvm install` and `corepack prepare` download without retries, so a
+failed install is rerun up to that many times, 5s apart (SDKMAN itself from scratch).
 
 ## Supported runtime options
 

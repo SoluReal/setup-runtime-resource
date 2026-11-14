@@ -74,6 +74,15 @@ function curl_retry() {
 }
 export -f curl_retry
 
+# For installers that download without retrying themselves (sdk, nvm, corepack).
+function retry() {
+  local attempt=0
+  until "$@"; do
+    (( attempt++ < ${dependency_download_retries:-0} )) || return 1
+    sleep 5
+  done
+}
+
 chroot_exec() {
     local rootfs="${1}"
     shift

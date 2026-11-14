@@ -15,7 +15,7 @@ if [ -n "$nodejs_version" ]; then
   export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
   source "$NVM_DIR/nvm.sh"
 
-  nvm install "$candidate"
+  retry nvm install "$candidate"
   add_metadata "node" "$(nvm current)"
   npm uninstall -g yarn pnpm || true
 
@@ -33,7 +33,7 @@ if [ -n "$nodejs_version" ]; then
   fi
 
   if [ -n "$yarn_version" ]; then
-    corepack prepare yarn@${yarn_version} --activate &
+    retry corepack prepare yarn@${yarn_version} --activate &
     info_spinner "Installing yarn $yarn_version" "yarn $yarn_version installed" $!
     add_metadata "yarn" "$yarn_version"
 
@@ -43,7 +43,7 @@ if [ -n "$nodejs_version" ]; then
   fi
 
   if [ -n "$pnpm_version" ]; then
-    corepack prepare pnpm@${pnpm_version} --activate &
+    retry corepack prepare pnpm@${pnpm_version} --activate &
     info_spinner "Installing pnpm $pnpm_version" "pnpm $pnpm_version installed" $!
     add_metadata "pnpm" "$pnpm_version"
   fi

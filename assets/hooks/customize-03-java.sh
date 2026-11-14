@@ -11,7 +11,7 @@ if [[ -n "$java_version" ]]; then
   source $SDKMAN_DIR/bin/sdkman-init.sh
 
   echo "$extra_java_versions" | jq -r '.[]' | while read -r version; do
-    sdk install java $version &
+    retry sdk install java $version &
     info_spinner "Installing java, candidate: $version" "java candidate $version installed" $!
     add_metadata "java" "$version"
   done
@@ -21,7 +21,7 @@ if [[ -n "$java_version" ]]; then
   else
     install_java="$java_version"
   fi
-  sdk install java $install_java &
+  retry sdk install java $install_java &
   info_spinner "Installing java, candidate: $install_java" "Java candidate $install_java installed" $!
   sdk use java $install_java
   add_metadata "java-default" "$install_java"
@@ -29,14 +29,14 @@ fi
 
 if [[ -n "$maven_version" ]]; then
   source $SDKMAN_DIR/bin/sdkman-init.sh
-  sdk install maven $maven_version &
+  retry sdk install maven $maven_version &
   info_spinner "Installing maven, candidate: $maven_version" "Maven candidate $maven_version installed" $!
   add_metadata "maven" "$maven_version"
 fi
 
 if [[ -n "$gradle_version" ]]; then
   source $SDKMAN_DIR/bin/sdkman-init.sh
-  sdk install gradle $gradle_version &
+  retry sdk install gradle $gradle_version &
   info_spinner "Installing gradle, candidate: $gradle_version" "Gradle candidate $gradle_version installed" $!
   add_metadata "gradle" "$gradle_version"
 fi
