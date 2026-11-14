@@ -3,5 +3,5 @@
   "extends": [
     "config:recommended"
   ],
-  "ignorePaths": ["**/example/**"]
+  "ignorePaths": ["**/example/**", "test/resources/projects/**"]
 }

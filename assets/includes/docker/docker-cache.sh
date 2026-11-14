@@ -2,9 +2,10 @@
 
 export DOCKER_CACHE_DIR="$CACHE_DIRECTORY/docker"
 
-function docker_load_cache() {
+function load_cached_images() {
   if [ -d "$DOCKER_CACHE_DIR" ]; then
     if ls "$DOCKER_CACHE_DIR"/*.tar >/dev/null 2>&1; then
+      local cores
       cores=$(nproc --all)
 
       export -f load_cached_image
@@ -24,7 +25,7 @@ function load_cached_image() {
   fi
 }
 
-function docker_cache_filename() {
+function image_cache_filename() {
   local image="$1"
 
   if [[ "$image" != *:* ]]; then
@@ -38,7 +39,7 @@ function docker_cache_filename() {
 
 function save_image_if_missing() {
   local image="$1"
-  local cached_file="$DOCKER_CACHE_DIR/$(docker_cache_filename "$image")"
+  local cached_file="$DOCKER_CACHE_DIR/$(image_cache_filename "$image")"
 
   if [ -f "$cached_file" ]; then
     return 0
@@ -55,7 +56,7 @@ function save_image_if_missing() {
   fi
 }
 
-function docker_save_cache() {
+function sync_cached_images() {
   local images="$*"
 
   mkdir -p "$DOCKER_CACHE_DIR"
@@ -65,7 +66,7 @@ function docker_save_cache() {
   local -A wanted=()
   local image
   for image in $images; do
-    wanted["$(docker_cache_filename "$image")"]=1
+    wanted["$(image_cache_filename "$image")"]=1
   done
 
   local cached_file base
@@ -80,7 +81,7 @@ function docker_save_cache() {
   local cores
   cores=$(nproc --all)
   export -f save_image_if_missing
-  export -f docker_cache_filename
+  export -f image_cache_filename
   export -f info
   printf '%s\n' $images | xargs -P "$cores" -I{} env -u BASH_ENV bash -c 'save_image_if_missing "$1"' _ {}
 }
@@ -88,7 +89,7 @@ function docker_save_cache() {
 function teardown_docker() {
   set -e
 
-  local events events_err
+  local events events_err used_images
   events_err=$(mktemp)
 
   # Never discard stderr: the runtime reports there why it produced no events.
@@ -108,13 +109,13 @@ function teardown_docker() {
 
   # docker names the field .Action / .Actor.Attributes.image, podman .Status / .Image;
   # accept either, or nothing is ever cached on one of the runtimes.
-  USED_IMAGES=$(printf '%s' "$events" \
+  used_images=$(printf '%s' "$events" \
     | jq -r 'select(.Type=="container") | select((.Action // .Status) == "start") | (.Actor.Attributes.image // .Image)' \
     | sort | uniq | xargs)
 
-  if [[ -n "$USED_IMAGES" ]]; then
+  if [[ -n "$used_images" ]]; then
     info "Caching docker images"
-    docker_save_cache $USED_IMAGES
+    sync_cached_images $used_images
   else
     rm -rf "$DOCKER_CACHE_DIR"
   fi

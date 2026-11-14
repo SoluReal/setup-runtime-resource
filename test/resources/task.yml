@@ -1,0 +1,16 @@
+# The one task every test job and every step of test-full runs; TEST names the test directory.
+platform: linux
+
+inputs:
+  - name: repo
+
+caches:
+  - path: cache
+
+params:
+  TEST:
+  DEBUG: true
+
+run:
+  path: bash
+  args: [repo/test/resources/run.sh]

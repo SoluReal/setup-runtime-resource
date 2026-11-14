@@ -12,7 +12,7 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
 
   if [[ "$testcontainers_rootless" = "true" ]]; then
     add_metadata "testcontainers-rootless" "true"
-    set_env "TESTCONTAINERS_ROOTLESS=true"
+    add_task_env_var "TESTCONTAINERS_ROOTLESS=true"
 
     # podman-docker's `docker` shim prints an "Emulate Docker CLI" notice on every call;
     # this file is the documented way to silence it.

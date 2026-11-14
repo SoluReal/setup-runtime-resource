@@ -11,7 +11,7 @@ source "$RUNTIME_DIR/docker/docker-login.sh"
 export CONTAINER_RUNTIME_PID_FILE="/tmp/container-runtime.pid"
 export CONTAINER_RUNTIME_LOG_FILE="/tmp/container-runtime.log"
 
-function start_docker_daemon() {
+function start_container_runtime() {
   CONTAINER_RUNTIME_TIMEOUT="${CONTAINER_RUNTIME_TIMEOUT:-60}"
   DOCKER_OPTS="${DOCKER_OPTS:-}"
 
@@ -29,12 +29,12 @@ function start_docker_daemon() {
   await_docker
 }
 
-function restore_docker_cache() {
+function restore_docker_images() {
   [[ "$ENABLE_CACHE" = "true" ]] || return 0
 
   info "Restoring docker images"
-  docker_load_cache
-  # Counted after loading: docker_load_cache discards corrupt tars.
+  load_cached_images
+  # Counted after loading: load_cached_images discards corrupt tars.
   local images
   images="$(find "$DOCKER_CACHE_DIR" -maxdepth 1 -name '*.tar' 2>/dev/null | wc -l | tr -d ' ')"
   if (( images > 0 )); then
@@ -44,8 +44,8 @@ function restore_docker_cache() {
 }
 
 function initialize_docker() {
-  start_docker_daemon
-  restore_docker_cache
+  start_container_runtime
+  restore_docker_images
 }
 
 register_initialize_callback initialize_docker

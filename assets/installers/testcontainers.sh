@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function testcontainers_get_dependencies() {
-  local shared="ca-certificates curl gawk iproute2 jq passwd"
+  local shared="curl gawk iproute2 jq passwd"
 
   if [ "$testcontainers_enabled" = "true" ]; then
     if [ "$testcontainers_rootless" = "true" ]; then

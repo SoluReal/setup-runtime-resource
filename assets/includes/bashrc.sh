@@ -21,30 +21,30 @@ function cache_event() {
   printf "$Green[cache] %s$Color_Off\n" "$*"
 }
 
-function cache_file_count() {
+function count_files() {
   local dir="$1"
   [[ -d "$dir" ]] || { echo 0; return 0; }
   find "$dir" -type f 2>/dev/null | wc -l | tr -d ' '
 }
 
 # A cache never reports zero of something, so a directory of only empty dirs logs nothing.
-function cache_local_hit() {
+function log_cache_restore() {
   local files
-  files="$(cache_file_count "$2")"
+  files="$(count_files "$2")"
   if (( files > 0 )); then
     cache_event "restore $1 from=local files=$files"
   fi
 }
 
 declare -a TEARDOWN_CALLBACKS=()
-declare -a ON_INITIALIZE_CALLBACKS=()
+declare -a INITIALIZE_CALLBACKS=()
 
 function register_teardown_callback() {
   TEARDOWN_CALLBACKS+=("$1")
 }
 
 function register_initialize_callback() {
-  ON_INITIALIZE_CALLBACKS+=("$1")
+  INITIALIZE_CALLBACKS+=("$1")
 }
 
 # Empty $CACHE_DIRECTORY while keeping the directory itself, since Concourse
@@ -68,12 +68,12 @@ function register_cache_dir() {
   CACHE_PATHS["$1"]="$2"
 }
 
-function restore_cache_dirs() {
+function log_cached_dirs() {
   [[ "$ENABLE_CACHE" = "true" ]] || return 0
 
   local key
   for key in "${CACHE_KEYS[@]}"; do
-    cache_local_hit "$key" "${CACHE_PATHS[$key]}"
+    log_cache_restore "$key" "${CACHE_PATHS[$key]}"
   done
 
   return 0
@@ -160,12 +160,12 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     fi
   fi
 
-  register_initialize_callback restore_cache_dirs
+  register_initialize_callback log_cached_dirs
 
   # Callbacks run in parallel; `wait`'s exit status is the only signal that
   # one failed, and a failed runtime start must abort the task.
   _pids=()
-  for cb in "${ON_INITIALIZE_CALLBACKS[@]}"; do
+  for cb in "${INITIALIZE_CALLBACKS[@]}"; do
     "$cb" &
     _pids+=($!)
   done

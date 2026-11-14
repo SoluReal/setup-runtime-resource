@@ -6,7 +6,7 @@ chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
 
-log_info_hook "Cleaning up"
+info_to_output_file "Cleaning up"
 if [[ -d $SDKMAN_DIR ]]; then
     source "$SDKMAN_DIR/bin/sdkman-init.sh"
 
@@ -60,4 +60,4 @@ rm -rf $chroot_dir/usr/bin/debconf*
 # shasum is a perl script, so it is orphaned once perl is removed.
 rm -rf $chroot_dir/usr/bin/shasum
 
-log_info_hook "Cleanup finished"
+info_to_output_file "Cleanup finished"

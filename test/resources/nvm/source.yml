@@ -1,0 +1,6 @@
+nvm:
+  enabled: true
+nodejs:
+  version: lts
+verbose: true
+dependency_download_retries: 3

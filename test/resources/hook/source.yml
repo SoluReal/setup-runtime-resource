@@ -1,0 +1,9 @@
+hook: |
+  curl -fSL https://github.com/hairyhenderson/gomplate/releases/download/v4.3.3/gomplate_linux-$(dpkg --print-architecture) -o /usr/local/bin/gomplate
+  chmod +x /usr/local/bin/gomplate
+dependencies:
+  - wget
+  - git
+  - curl
+dependency_download_retries: 3
+verbose: true

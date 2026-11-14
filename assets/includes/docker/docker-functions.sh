@@ -96,6 +96,8 @@ start_docker() {
   echo "$!" > "${CONTAINER_RUNTIME_PID_FILE}"
 }
 
+# Wait for docker daemon to be healthy
+# Timeout after CONTAINER_RUNTIME_TIMEOUT seconds
 await_docker() {
   local timeout="${CONTAINER_RUNTIME_TIMEOUT}"
   echo >&2 "Waiting ${timeout} seconds for Docker to be available..."

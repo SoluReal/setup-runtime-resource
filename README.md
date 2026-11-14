@@ -68,7 +68,7 @@ The resource `source` configuration supports the following options:
 
 | Option                        | Description                                                                                                               | Default |
 |-------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
-| `dependencies`                | A list of Debian packages to install.                                                                                     | `[]`    |
+| `dependencies`                | A list of Debian packages to install. `ca-certificates` is always installed.                                              | `[]`    |
 | `hook`                        | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
 | `verbose`                     | Enable verbose logging during rootfs creation.                                                                            | `false` |
 | `debug`                       | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
@@ -90,7 +90,7 @@ The resource `source` configuration supports the following options:
 | `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
 | `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
-| `dependency_download_retries` | Number of times to retry a failed dependency download (`curl`) during rootfs creation. `0` disables retries.              | `0`     |
+| `dependency_download_retries` | Number of times to retry a failed download during rootfs creation (see [Retries](#retries)). `0` disables retries.        | `0`     |
 
 ## Tasks run as a non-root user
 
@@ -103,6 +103,9 @@ task keep working unchanged.
 The one exception is `testcontainers.enabled: true` with `testcontainers.rootless: false`: `dockerd` needs real root, so
 that combination still runs the task as `root`. Prefer
 [rootless testcontainers](#rootless-testcontainers) instead.
+
+The rootfs has no package manager: the dpkg database and apt are removed during the build, so neither the `hook` nor
+a task can `apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
 
 ## Minimal image
 
@@ -132,8 +135,9 @@ source:
   dependency_download_retries: 3
 ```
 
-This is implemented via curl's own `--retry` handling, which backs off exponentially between attempts (1s,
-2s, 4s, ..., capped at 10 minutes).
+Downloads use curl's own `--retry`, which backs off exponentially between attempts (1s, 2s, 4s, ..., capped at 10
+minutes). The SDKMAN installer downloads without retries, so a failed SDKMAN install is rerun from scratch up to that
+many times, 5s apart.
 
 ## Supported runtime options
 

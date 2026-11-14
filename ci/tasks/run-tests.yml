@@ -1,4 +1,4 @@
-# The one test job's task, shared by ci/pipeline.yml and example/pipeline.yml.
+# The one test job's task, shared by ci/pipeline.yml and test/pipeline.yml.
 # It triggers the pipeline's own test-* jobs - see ci/tasks/run-tests.sh.
 platform: linux
 

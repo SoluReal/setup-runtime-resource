@@ -88,7 +88,7 @@ services:
     container_name: git-server
     volumes:
       # Serve the same paths as CI, excluding local keys.
-      - ./example:/git/repo/example:ro
+      - ./test:/git/repo/test:ro
       - ./ci:/git/repo/ci:ro
     ports:
       - "3000:3000"

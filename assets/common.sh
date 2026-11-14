@@ -15,7 +15,7 @@ export RUNTIME_USER="runtime"
 export RUNTIME_UID=1000
 export RUNTIME_HOME="/home/$RUNTIME_USER"
 
-compute_hash() {
+hash_source() {
   local json="$1"
   echo "$json" | jq -c .source | sha256sum | awk '{print $1}'
 }
@@ -24,7 +24,7 @@ function info() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1"
 }
 
-function log_info_hook() {
+function info_to_output_file() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1" >> $OUTPUT_FILE
 }
 
@@ -37,11 +37,11 @@ function info_spinner() {
   local status
 
   if [ "$VERBOSE" = "true" ]; then
-    log_info_hook "$progress_message"
+    info_to_output_file "$progress_message"
     wait "$pid"
     status=$?
     printf "\n" >> $OUTPUT_FILE
-    log_info_hook "$finished_message"
+    info_to_output_file "$finished_message"
   else
     while kill -0 "$pid" 2>/dev/null; do
         for i in $(seq 0 3); do
@@ -81,7 +81,7 @@ chroot_exec() {
     fakechroot chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
 }
 
-function set_env() {
+function add_task_env_var() {
   local env_line="${1}"
 
   touch /tmp/env_vars

@@ -1,0 +1,10 @@
+sdkman:
+  enabled: true
+java:
+  version: 21.0.4-tem
+testcontainers:
+  enabled: true
+  # Use rootless Podman in CI; local runs may rewrite this for dockerd.
+  rootless: true
+verbose: true
+dependency_download_retries: 3

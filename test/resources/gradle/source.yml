@@ -1,0 +1,7 @@
+sdkman:
+  enabled: true
+# Matches projects/gradle/.sdkmanrc, so `sdk env install` finds it in the rootfs.
+java:
+  version: 21.0.4-tem
+verbose: true
+dependency_download_retries: 3

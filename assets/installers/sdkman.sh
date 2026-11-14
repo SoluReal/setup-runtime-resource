@@ -2,7 +2,7 @@
 
 function sdkman_get_dependencies() {
   if [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]]; then
-    echo "curl zip unzip ca-certificates"
+    echo "curl zip unzip"
   else
     echo ""
   fi

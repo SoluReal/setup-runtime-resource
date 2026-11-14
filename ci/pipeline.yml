@@ -1,9 +1,3 @@
-# The test job is the release gate and starts the test jobs.
-release-gate: &release_gate [ test ]
-
-# Experimental tests run separately and cannot block a release.
-gating-tests: &gating_tests full simple gradle maven nodejs python rc-files
-
 resources:
   - name: repo
     type: git
@@ -47,54 +41,6 @@ resources:
       owner: solureal
       repository: setup-runtime-resource
       access_token: ((github-apitoken))
-
-  - name: setup-runtime-full
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_FULL))
-
-  - name: setup-runtime-simple
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_SIMPLE))
-
-  - name: setup-runtime-gradle
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_GRADLE))
-
-  - name: setup-runtime-maven
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_MAVEN))
-
-  - name: setup-runtime-nodejs
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_NODEJS))
-
-  - name: setup-runtime-python
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_PYTHON))
-
-  - name: setup-runtime-rc-files
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_RC_FILES))
-
-  - name: setup-runtime-testcontainers-rootless
-    type: setup-runtime-resource
-    icon: account-hard-hat
-    source:
-      ((SOURCE_TESTCONTAINERS_ROOTLESS))
 
   - name: pr-source
     type: github-pr
@@ -152,131 +98,18 @@ jobs:
           FLY_USERNAME: ((fly-username))
           FLY_PASSWORD: ((fly-password))
           PIPELINE: setup-runtime-resource
-          TESTS: *gating_tests
-
-  - name: test-experimental
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-resource-dev
-          passed: [ build ]
-        - get: repo
-          passed: [ build ]
-      - task: run-tests
-        image: setup-runtime-resource-dev
-        file: repo/ci/tasks/run-tests.yml
-        params:
-          FLY_USERNAME: ((fly-username))
-          FLY_PASSWORD: ((fly-password))
-          PIPELINE: setup-runtime-resource
-          TESTS: testcontainers-rootless
-
-  - name: test-full
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-full
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-full
-        privileged: true
-        file: repo/example/tests/full/task.yml
-
-  - name: test-simple
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-simple
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-simple
-        privileged: true
-        file: repo/example/tests/simple/task.yml
-
-  - name: test-gradle
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-gradle
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-gradle
-        privileged: true
-        file: repo/example/tests/gradle/task.yml
-
-  - name: test-maven
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-maven
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-maven
-        privileged: true
-        file: repo/example/tests/maven/task.yml
-
-  - name: test-nodejs
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-nodejs
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-nodejs
-        privileged: true
-        file: repo/example/tests/nodejs/task.yml
-
-  - name: test-python
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-python
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-python
-        privileged: true
-        file: repo/example/tests/python/task.yml
-
-  - name: test-rc-files
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-rc-files
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-rc-files
-        privileged: true
-        file: repo/example/tests/rc-files/task.yml
-
-  - name: test-testcontainers-rootless
-    serial: true
-    plan:
-      - in_parallel:
-        - get: setup-runtime-testcontainers-rootless
-        - get: repo
-          passed: [ build ]
-      - task: test-image
-        image: setup-runtime-testcontainers-rootless
-        privileged: true
-        file: repo/example/tests/testcontainers-rootless/task.yml
 
   - name: pr-build-and-test
     serial: true
     plan:
-      - get: pr-source
+      - get: repo
+        resource: pr-source
         trigger: false # don't run on every PR created.
         params: { depth: 1 }
       - put: set-pending-status
         resource: pr-source
         params:
-          path: pr-source
+          path: repo
           status: pending
       - task: build
         privileged: true
@@ -292,7 +125,7 @@ jobs:
           caches:
             - path: cache
           inputs:
-            - name: pr-source
+            - name: repo
               path: .
           outputs:
             - name: image
@@ -302,33 +135,30 @@ jobs:
         params:
           image: image/image.tar
       - get: setup-runtime-full
-      - task: test-image
-        image: setup-runtime-full
-        privileged: true
-        file: pr-source/example/tests/full/task.yml
-        input_mapping: { repo: pr-source }
+      # test/pipeline.sh puts test-full's steps here.
+      - in_parallel: full-steps
     on_success:
       put: set-build-success-status
       resource: pr-source
       params:
-        path: pr-source
+        path: repo
         status: success
     on_failure:
       put: set-failure-status
       resource: pr-source
       params:
-        path: pr-source
+        path: repo
         status: failure
 
   - name: publish-major
     plan:
       - in_parallel:
         - get: repo
-          passed: *release_gate
+          passed: [ test ]
         - get: version
           params: { bump: major }
         - get: setup-runtime-resource-dev
-          passed: *release_gate
+          passed: [ test ]
           params:
             format: oci-layout
       - load_var: version
@@ -359,11 +189,11 @@ jobs:
     plan:
       - in_parallel:
         - get: repo
-          passed: *release_gate
+          passed: [ test ]
         - get: version
           params: { bump: minor }
         - get: setup-runtime-resource-dev
-          passed: *release_gate
+          passed: [ test ]
           params:
             format: oci-layout
       - load_var: version
@@ -379,11 +209,11 @@ jobs:
     plan:
       - in_parallel:
         - get: repo
-          passed: *release_gate
+          passed: [ test ]
         - get: version
           params: { bump: patch }
         - get: setup-runtime-resource-dev
-          passed: *release_gate
+          passed: [ test ]
           params: { format: oci-layout }
       - load_var: version
         file: version/version
