@@ -28,6 +28,33 @@ function info_to_output_file() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1" >> $OUTPUT_FILE
 }
 
+# 72 -> 1m12s
+function format_elapsed() {
+  local secs=$1
+  if (( secs >= 60 )); then printf "%dm%02ds" $((secs / 60)) $((secs % 60)); else printf "%ds" "$secs"; fi
+}
+
+function group_color() {
+  case "$1" in
+    sdkman) printf '\033[0;36m' ;;
+    node) printf '\033[0;35m' ;;
+    pyenv) printf '\033[0;33m' ;;
+    golang) printf '\033[0;34m' ;;
+    python) printf '\033[0;32m' ;;
+    *) printf '\033[0;37m' ;;
+  esac
+}
+
+# One printf per line: appends below PIPE_BUF are atomic, so parallel groups never interleave.
+function group_event() {
+  local symbol=$1 symbol_color=$2 msg=$3 elapsed=${4:-}
+  local line
+  [[ -z "$elapsed" ]] || msg=$(printf "%-38s %s" "$msg" "$elapsed")
+  line=$(printf "%b[setup-runtime]%b %b%s%b %b%-7s%b %s" "$Green" "$Color_Off" "$symbol_color" "$symbol" \
+    "$Color_Off" "$(group_color "$GROUP_NAME")" "$GROUP_NAME" "$Color_Off" "$msg")
+  printf '%s\n' "$line" >> "$OUTPUT_FILE"
+}
+
 function info_spinner() {
   local progress_message=$1
   local finished_message=$2
@@ -36,11 +63,21 @@ function info_spinner() {
   local spin='|/-\'
   local status
 
-  # \r spinners from parallel runtime groups would garble the log, so they log plain lines.
-  if [ "$VERBOSE" = "true" ] || [ "$SETUP_PARALLEL" = "true" ]; then
+  if [ "$SETUP_PARALLEL" = "true" ]; then
+    local started=$SECONDS
+    group_event "▶" "$Green" "$progress_message"
+    status=0
+    wait "$pid" || status=$?
+    if [ $status -eq 0 ]; then
+      group_event "✔" "$Green" "$finished_message" "$(format_elapsed $((SECONDS - started)))"
+    else
+      group_event "✘" "$Red" "failed: $progress_message" "$(format_elapsed $((SECONDS - started)))"
+    fi
+  elif [ "$VERBOSE" = "true" ]; then
     info_to_output_file "$progress_message"
     wait "$pid"
     status=$?
+    printf "\n" >> $OUTPUT_FILE
     info_to_output_file "$finished_message"
   else
     while kill -0 "$pid" 2>/dev/null; do

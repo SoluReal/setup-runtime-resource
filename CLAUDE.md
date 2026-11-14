@@ -43,9 +43,9 @@ Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<n
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
 
 `hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `pyenv`,
-`golang`; add new runtimes there) and fails the build with the failing group's output. Per group `$OUTPUT_FILE` and
-`$RUNTIME_BASHRC` are private files, merged afterwards (`.bashrc` in fixed order) and `info_spinner` logs plain lines
-(`SETUP_PARALLEL`). Write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside a group stay
+`golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),
+`info_spinner` logs one atomic `▶`/`✔` line per step to the shared `$OUTPUT_FILE` (no `\r` spinners), raw tool output goes
+to a private file shown only on failure or `verbose`, and `$RUNTIME_BASHRC` is merged afterwards in fixed order. Write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside a group stay
 serial: sdkman's shared state is not safe for concurrent `sdk install`.
 
 Caching invariants:
