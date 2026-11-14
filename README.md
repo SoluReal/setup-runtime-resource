@@ -80,6 +80,7 @@ The resource `source` configuration supports the following options:
 | `gradle.version`              | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
 | `gradle.wrapper`              | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
 | `pyenv.enabled`               | Enable pyenv.                                                                                                             | `false` |
+| `python.version`              | The prebuilt CPython to install, e.g. `3.12` (latest patch) or `3.12.16`. No compiler needed.                              | `""`    |
 | `golang.version`              | The Go version to install.                                                                                                | `""`    |
 | `nvm.enabled`                 | Enable NVM.                                                                                                               | `false` |
 | `nodejs.version`              | The Node.js version to install via NVM.                                                                                   | `""`    |
@@ -127,7 +128,7 @@ explicitly if you want the smaller image.
 
 ## Retries
 
-By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, pyenv, Go, and the
+By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, pyenv, Python, Go, and the
 Docker apt key) - a transient network error during rootfs creation fails the resource straight away. Set
 `dependency_download_retries` to have it retry those downloads:
 
@@ -282,6 +283,47 @@ jobs:
               corepack enable
               npm ci
               npm run build
+```
+
+## Python
+
+`python.version` installs a prebuilt CPython from
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone) when the rootfs is created. Unlike
+pyenv it needs no compiler or `-dev` packages, so the image is smaller and nothing is built at task time. `python`,
+`python3` and `pip` are on the `PATH`, and `pip install` works without a virtualenv (the interpreter is not marked
+externally managed). A minor version such as `3.12` resolves to the newest patch in the pinned python-build-standalone
+release, which lists only the latest patch per minor; use [pyenv](#pyenv) for older patches or custom builds.
+
+Example resource configuration:
+
+```yaml
+resources:
+  - name: setup-runtime
+    type: setup-runtime-resource
+    source:
+      python:
+        version: "3.12"
+```
+
+Job example:
+
+```yaml
+jobs:
+  - name: build
+    plan:
+      - in_parallel:
+          - get: setup-runtime
+          - get: my-source-code
+      - task: build-project
+        image: setup-runtime
+        config:
+          platform: linux
+          args:
+            - -ec
+            - |
+              cd my-source-code
+              pip install -r requirements.txt
+              pytest
 ```
 
 ## Pyenv

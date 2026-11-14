@@ -1,6 +1,8 @@
-cd "$PROJECTS/python"
+python --version | assert_contains "Python 3.12."
+python3 --version | assert_contains "Python 3.12."
 
-pyenv install --skip-existing
+# pip is the interpreter's own, so an EXTERNALLY-MANAGED marker would fail this install.
+cd "$PROJECTS/python"
 
 pip install -r requirements.txt
 
