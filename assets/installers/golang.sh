@@ -2,7 +2,9 @@
 
 function golang_get_dependencies() {
   if [[ -n "$golang_version" ]]; then
-    echo "curl build-essential"
+    local tools=""
+    [[ "$build_tools" != "false" ]] && tools="build-essential"
+    echo "curl $tools"
   else
     echo ""
   fi

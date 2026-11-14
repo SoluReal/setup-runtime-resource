@@ -3,3 +3,4 @@ golang:
 minimal_image: true
 verbose: true
 dependency_download_retries: 3
+build_tools: false

@@ -89,6 +89,7 @@ The resource `source` configuration supports the following options:
 | `testcontainers.enabled`      | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
 | `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
+| `build_tools`                 | Install `build-essential` for Node.js and Go (native addons, cgo). `pyenv` always installs it. Or add it via `dependencies`. | `true`  |
 | `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
 | `dependency_download_retries` | Number of times to retry a failed download during rootfs creation (see [Retries](#retries)). `0` disables retries.        | `0`     |
 

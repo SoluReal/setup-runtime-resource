@@ -15,3 +15,8 @@ func main() { fmt.Println("hello from go") }
 GO
 go build -o hello main.go
 ./hello | assert_contains "hello from go"
+
+# In full, pyenv brings gcc anyway.
+if [[ "$PYENV_ENABLED" != "true" ]]; then
+  (command -v gcc || echo "no gcc") | assert_contains "no gcc"
+fi
