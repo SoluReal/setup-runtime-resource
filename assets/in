@@ -63,6 +63,8 @@ dependencies="
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
+in_start=$SECONDS
+
 info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 
 WORK_ROOTFS="/tmp/work-rootfs.tar"
@@ -103,8 +105,6 @@ fi
 
 export OUTPUT_FILE=/tmp/info_log
 touch $OUTPUT_FILE
-tail -f "$OUTPUT_FILE" &
-INFO_LOGGER_PID=$!
 # A surviving tail holds the task's stderr open, so Concourse would wait on a failed build forever.
 trap 'kill $INFO_LOGGER_PID 2>/dev/null || true' EXIT
 
@@ -128,14 +128,24 @@ args+=(
   "$DEBIAN_VERSION" "$WORK_ROOTFS"
 )
 
-log_on_error mmdebstrap "${args[@]}"
-
-kill $INFO_LOGGER_PID
+phase_start=$SECONDS
+log_on_error mmdebstrap "${args[@]}" &
+MMDEBSTRAP_PID=$!
+# --pid makes tail read the file one last time once mmdebstrap exits, so no hook line is lost.
+tail -f --pid=$MMDEBSTRAP_PID "$OUTPUT_FILE" &
+INFO_LOGGER_PID=$!
+wait $MMDEBSTRAP_PID
+wait $INFO_LOGGER_PID
+timing_line phase=mmdebstrap "$phase_start"
 trap - EXIT
 
 mkdir -p "$dest/rootfs/"
+phase_start=$SECONDS
 tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
+timing_line phase=tar-delete "$phase_start"
+phase_start=$SECONDS
 tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
+timing_line phase=tar-extract "$phase_start"
 
 # /tmp is stripped from the tarball above; recreate it writable for the
 # non-root task user.
@@ -146,7 +156,9 @@ mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
   info "Running custom hook..."
+  phase_start=$SECONDS
   log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
+  timing_line phase=user-hook "$phase_start"
   info "Custom hook finished"
 fi
 
@@ -201,9 +213,19 @@ cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
 
 # The build ran as root. The task user needs to write to both: sdk/nvm/pyenv
 # install into $RUNTIME_DIR at task time, gradle/maven write under $HOME.
+phase_start=$SECONDS
 chown -R "$RUNTIME_UID:$RUNTIME_UID" "$dest/rootfs$RUNTIME_HOME" "$dest/rootfs$RUNTIME_DIR"
+timing_line phase=chown "$phase_start"
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"
+
+# Globs must expand inside the rootfs, not on the host; `current` is a symlink to another JDK.
+size_paths=(/usr "$RUNTIME_HOME")
+for d in "$dest/rootfs$RUNTIME_DIR"/* "$dest/rootfs$SDKMAN_RUNTIME_DIR"/candidates/java/*; do
+  [[ "$(basename "$d")" != "current" ]] && size_paths+=("${d#"$dest/rootfs"}")
+done
+log_sizes "$dest/rootfs" "${size_paths[@]}"
+timing_line phase=in "$in_start"
 
 touch /tmp/metadata || true
 

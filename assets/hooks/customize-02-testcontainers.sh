@@ -4,6 +4,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source $ROOT_DIR/common.sh
+time_hook "$0"
 
 if [[ "$testcontainers_enabled" = "true" ]]; then
   add_metadata "testcontainers" "$testcontainers_enabled"

@@ -4,6 +4,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
+time_hook "$0"
 
 if [ -n "$nodejs_version" ]; then
   if [ "$nodejs_version" = "lts" ]; then

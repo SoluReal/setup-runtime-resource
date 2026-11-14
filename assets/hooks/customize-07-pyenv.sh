@@ -4,6 +4,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
+time_hook "$0"
 
 if [[ "$pyenv_enabled" = "true" ]]; then
   export PYENV_ROOT="$chroot_dir$PYENV_RUNTIME_DIR"

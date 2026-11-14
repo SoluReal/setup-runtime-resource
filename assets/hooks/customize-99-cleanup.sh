@@ -4,6 +4,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
+time_hook "$0"
 export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
 
 info_to_output_file "Cleaning up"

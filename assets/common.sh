@@ -58,6 +58,28 @@ function info_spinner() {
   return $status
 }
 
+# Greppable timing line: `[timing] <label> seconds=N`, N counted from $2 (a $SECONDS value, default shell start).
+function timing_line() {
+  printf '[timing] %s seconds=%s\n' "$1" "$(( SECONDS - ${2:-0} ))"
+}
+
+# Hooks are separate processes (SECONDS starts at 0), so an EXIT trap covers the whole hook.
+function time_hook() {
+  local name
+  name=$(basename "$1" .sh)
+  trap "timing_line hook=$name >> \"\$OUTPUT_FILE\"" EXIT
+}
+
+# `log_sizes <rootfs> <path>...`: one `[size] path=<path> kb=<n>` line per path that exists in the rootfs.
+function log_sizes() {
+  local root=$1 p
+  shift
+  for p in "$@"; do
+    [[ -e "$root$p" ]] && printf '[size] path=%s kb=%s\n' "$p" "$(du -sk "$root$p" | cut -f1)"
+  done
+  return 0
+}
+
 function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
 }

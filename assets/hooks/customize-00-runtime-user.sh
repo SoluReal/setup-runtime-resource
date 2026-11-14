@@ -4,6 +4,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source "$ROOT_DIR"/common.sh
+time_hook "$0"
 
 # Tasks run as this user, so it must exist in every rootfs. Written directly: useradd's auto-assigned
 # subuid/subgid ranges collide with the explicit ones below and break newuidmap.

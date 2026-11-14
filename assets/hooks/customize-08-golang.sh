@@ -4,6 +4,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
+time_hook "$0"
 
 if [[ -n "$golang_version" ]]; then
   export GOROOT="$chroot_dir$GOLANG_RUNTIME_DIR"

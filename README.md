@@ -416,6 +416,12 @@ get appended rather than changing the ones already there.
 Docker images that are in your job will be automatically cached. This prevents the image from being downloaded every
 time your job runs when using e.g. [testcontainers](https://testcontainers.com/).
 
+## Build timing and size
+
+The resource logs `[timing] phase=<name> seconds=N` (mmdebstrap, tar, chown, the whole `in`), `[timing] hook=<name>
+seconds=N` per rootfs hook and `[size] path=<dir> kb=N` for the largest rootfs directories in the `get` step's log.
+Grep for `[timing]` or `[size]` to see where build time and image size go.
+
 ## Rootless testcontainers
 
 With `testcontainers.rootless: true`, [podman](https://podman.io/) is used instead of `dockerd`, running as a real

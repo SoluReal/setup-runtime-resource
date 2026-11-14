@@ -6,6 +6,7 @@ set -eo pipefail
 
 chroot_dir="$1"
 source $ROOT_DIR/common.sh
+time_hook "$0"
 
 info_to_output_file "Installing dependencies"
 
