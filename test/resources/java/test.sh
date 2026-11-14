@@ -10,7 +10,7 @@ command -v jar | assert_contains "/var/runtimes/sdkman/candidates/java/current/b
 gradle --version | assert_contains "Gradle 8.5"
 mvn --version | assert_contains "Apache Maven 3.9.9"
 
-# minimal_image strips jmods from every installed JDK.
+# jmods are stripped from every installed JDK by default (java.keep_jmods opts out).
 ls /var/runtimes/sdkman/candidates/java/*/jmods 2>&1 | assert_contains "No such file"
 
 sdk use java 25-graalce

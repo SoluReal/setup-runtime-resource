@@ -86,10 +86,11 @@ The resource `source` configuration supports the following options:
 | `nodejs.yarn.version`         | The Yarn version to install.                                                                                              | `""`    |
 | `nodejs.pnpm.version`         | The PNPM version to install.                                                                                              | `""`    |
 | `nodejs.bun.version`          | The bun version to install.                                                                                               | `""`    |
+| `java.keep_jmods`             | Keep every JDK's `jmods` and `src.zip`, which are stripped by default (see [JDK jmods and src.zip](#jdk-jmods-and-srczip)). | `false` |
 | `testcontainers.enabled`      | Enable Docker-in-Docker support for Testcontainers. You need to start the task with `privileged: true`                    | `false` |
 | `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
-| `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
+| `minimal_image`               | Also strip Go test data and Node headers to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
 | `dependency_download_retries` | Number of times to retry a failed download during rootfs creation (see [Retries](#retries)). `0` disables retries.        | `0`     |
 
 ## Tasks run as a non-root user
@@ -107,23 +108,26 @@ that combination still runs the task as `root`. Prefer
 The rootfs has no working package manager: the dpkg database is removed during the build, so neither the `hook` nor
 a task can `apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
 
+## JDK jmods and src.zip
+
+Every installed JDK's `lib/jmods` (only used by `jlink` to build a custom Java runtime) and `lib/src.zip` (the JDK's
+own source archive, used only by IDEs) are removed by default to shrink the rootfs. Set `java.keep_jmods: true` to keep
+both, for example if a task runs `jlink` or you attach JDK sources in an IDE.
+
 ## Minimal image
 
-When `minimal_image: true` is set, the resource strips content from the rootfs that isn't needed to compile or
-run code, but is not safe to remove unconditionally for every user:
+When `minimal_image: true` is set, the resource also strips content that isn't needed to compile or run code, but is
+not safe to remove unconditionally:
 
-- Every installed JDK's `lib/jmods` (only used by the `jlink` tool to build a custom trimmed Java runtime) and
-  `lib/src.zip` (the JDK's own source archive, used only by IDEs for source lookup/hover-docs).
 - Go's own `test/` (the Go compiler's test suite) and `api/` (API-compatibility check data) directories - not
   used by `go build`, `go test`, or `go vet` on your code.
 - Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
   `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
 - apt and dpkg's helper tools (`apt-get`, `dpkg-*`), which can't run anyway without the dpkg database.
 
-This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
-actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
-become the default in a future 1.x release once it's had more real-world exposure; until then, opt in
-explicitly if you want the smaller image.
+This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because compiling native npm
+addons will break without the Node headers. This may become the default in a future 1.x release once it's had more
+real-world exposure.
 
 ## Retries
 
