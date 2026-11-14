@@ -62,7 +62,7 @@ services:
     restart: unless-stopped
     command: worker
     privileged: true
-    depends_on: [ web, git-server, apt-cacher ]
+    depends_on: [ web, git-server, apt-cacher, squid ]
     volumes: [ "./keys/worker:/concourse-keys" ]
     links: [ web ]
     stop_signal: SIGUSR2
@@ -82,6 +82,21 @@ services:
         max-file: "5"
         max-size: "10m"
 
+  # TLS-bumping cache for the tasks' downloads; tasks reach it by service name, so no host port.
+  # Its CA is generated into squid-ca on first start, and build-and-test.sh passes it to every test source.
+  squid:
+    build:
+      context: util/squid
+    volumes:
+      - squid-ca:/etc/squid/ca
+      - squid-cache:/var/spool/squid
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+
   git-server:
     build:
       context: util/git-server
@@ -93,3 +108,7 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
+
+volumes:
+  squid-ca:
+  squid-cache:

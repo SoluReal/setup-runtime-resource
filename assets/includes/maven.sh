@@ -10,11 +10,22 @@ esac
 
 function create_m2_dir() {
     mkdir -p "$RUNTIME_HOME/.m2" "$MAVEN_USER_HOME" "$MAVEN_LOCAL_REPO"
-    cat <<EOF > $RUNTIME_HOME/.m2/settings.xml
-<settings>
-<localRepository>$MAVEN_LOCAL_REPO</localRepository>
-</settings>
-EOF
+    {
+      echo "<settings>"
+      echo "<localRepository>$MAVEN_LOCAL_REPO</localRepository>"
+      # Set by the resource's proxy option; Maven ignores *_proxy.
+      if [[ -n "${SETUP_RUNTIME_PROXY_HOST:-}" ]]; then
+        echo "<proxies>"
+        local scheme
+        for scheme in http https; do
+          echo "<proxy><id>setup-runtime-$scheme</id><active>true</active><protocol>$scheme</protocol>"
+          echo "<host>$SETUP_RUNTIME_PROXY_HOST</host><port>$SETUP_RUNTIME_PROXY_PORT</port>"
+          echo "<nonProxyHosts>$SETUP_RUNTIME_NON_PROXY_HOSTS</nonProxyHosts></proxy>"
+        done
+        echo "</proxies>"
+      fi
+      echo "</settings>"
+    } > $RUNTIME_HOME/.m2/settings.xml
     cp "$RUNTIME_HOME/.m2/settings.xml" "$MAVEN_USER_HOME/settings.xml"
 }
 

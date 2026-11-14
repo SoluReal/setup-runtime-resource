@@ -49,11 +49,20 @@ do
 done
 
 # Same generator as the deploy of ci/pipeline.yml; the flags cover how this stack differs from CI's cluster:
-# no unprivileged user namespaces (so dockerd, not rootless podman) and an apt-cacher.
+# no unprivileged user namespaces (so dockerd, not rootless podman), an apt-cacher and a caching proxy.
 command -v yq > /dev/null || { echo "test/pipeline.sh needs mikefarah yq v4 (brew install yq)" >&2; exit 1; }
 pipeline_file="$(mktemp)"
-trap 'rm -f "$pipeline_file"' EXIT
-test/pipeline.sh test/pipeline.yml --no-rootless --debian-proxy http://apt-cacher:3142 > "$pipeline_file"
+proxy_ca_file="$(mktemp)"
+trap 'rm -f "$pipeline_file" "$proxy_ca_file"' EXIT
+# squid writes its CA on first start; it persists in a volume, so the sources (and their rootfs) stay the same.
+for _ in $(seq 1 30); do
+  docker-compose -p concource-resource -f docker-compose.yml exec -T squid cat /etc/squid/ca/ca.pem \
+    > "$proxy_ca_file" 2> /dev/null && break
+  sleep 1
+done
+[[ -s "$proxy_ca_file" ]] || { echo "squid did not write its CA; see docker-compose logs squid" >&2; exit 1; }
+test/pipeline.sh test/pipeline.yml --no-rootless --debian-proxy http://apt-cacher:3142 \
+  --proxy http://squid:3128 --proxy-ca "$proxy_ca_file" > "$pipeline_file"
 
 fly -t test set-pipeline -c "$pipeline_file" -p "$PIPELINE" -n \
   --var "setup-runtime-resource-tag=$IMAGE_TAG" \

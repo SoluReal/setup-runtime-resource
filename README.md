@@ -91,6 +91,10 @@ The resource `source` configuration supports the following options:
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
 | `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
 | `dependency_download_retries` | Number of times to retry a failed download during rootfs creation (see [Retries](#retries)). `0` disables retries.        | `0`     |
+| `debian_proxy`                | An HTTP proxy for apt only, e.g. an apt-cacher-ng, while bootstrapping the rootfs.                                        | `""`    |
+| `proxy.url`                   | An HTTP proxy (`http://host:port`) for the rootfs build's downloads and for tasks (see [Proxy](#proxy)).                  | `""`    |
+| `proxy.no_proxy`              | Comma-separated hosts that bypass `proxy.url`.                                                                            | `localhost,127.0.0.1,::1` |
+| `proxy.ca_certificate`        | A PEM CA certificate to trust, e.g. a TLS-intercepting proxy's (see [Proxy](#proxy)).                                     | `""`    |
 
 ## Tasks run as a non-root user
 
@@ -139,6 +143,28 @@ source:
 Downloads use curl's own `--retry`, which backs off exponentially between attempts (1s, 2s, 4s, ..., capped at 10
 minutes). The SDKMAN installer, `sdk install`, `nvm install` and `corepack prepare` download without retries, so a
 failed install is rerun up to that many times, 5s apart (SDKMAN itself from scratch).
+
+## Proxy
+
+`proxy.url` routes the rootfs build's downloads (SDKMAN, JDKs, NVM, Node.js, bun, pyenv, Go and apt, unless
+`debian_proxy` is set) through an HTTP proxy, and exports it to tasks as `http_proxy`, `https_proxy` and `no_proxy`
+(plus upper-case variants). Gradle and Maven ignore those variables, so the resource also writes `systemProp.http(s).*`
+proxy settings to Gradle's `gradle.properties` and a `<proxies>` block to Maven's `settings.xml`.
+
+`proxy.ca_certificate` is trusted in the rootfs's CA bundle, in every JDK installed at build time (its `cacerts`) and,
+through `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` and `PIP_CERT`, by OpenSSL, Go, Node.js, bun and
+pip at task time. That lets a caching proxy that intercepts TLS cache HTTPS downloads:
+
+```yaml
+source:
+  proxy:
+    url: http://proxy:3128
+    no_proxy: localhost,127.0.0.1,.internal.example
+    ca_certificate: ((proxy-ca-certificate))
+```
+
+JDKs a task installs itself (`sdk install java`, `sdk env install`) don't have the CA. Other JVM tools need
+`-Dhttps.proxyHost`/`-Dhttps.proxyPort`. Both options are part of `source`, so changing them rebuilds the rootfs.
 
 ## Supported runtime options
 

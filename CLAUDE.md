@@ -6,7 +6,7 @@ with `mmdebstrap` + `fakechroot`, cached by Concourse. `check` = SHA-256 of `sou
 ## Tests
 
 E2E only, against the local Concourse stack in `docker-compose.yml` (web :8080, registry :5000, git-server,
-apt-cacher):
+apt-cacher, squid):
 
 ```bash
 ./build-and-test.sh                  # all
@@ -29,8 +29,9 @@ TEST="maven gradle" ./build-and-test.sh
   `Download`/`Pulling` after the marker unless `test.env` sets `DOWNLOADS_ON_WARM_RUN="<why>"`, and one
   `[cache] restore <key> from=local <unit>=N` per key in `test.env`'s `RESTORES_CACHE_DIRECTORIES`. `full` checks the
   union of all keys and skips the download check.
-- Locally `test/pipeline.sh --no-rootless` sets `rootless: false` (no user namespaces, so dockerd) and
-  `--debian-proxy` adds the apt-cacher; `testcontainers/test.sh` runs its rootless-only checks when
+- Locally `test/pipeline.sh --no-rootless` sets `rootless: false` (no user namespaces, so dockerd),
+  `--debian-proxy` adds the apt-cacher and `--proxy URL --proxy-ca FILE` set `proxy` to the TLS-bumping squid
+  (`util/squid`; its CA lives in the `squid-ca` volume, so a new one rebuilds every rootfs); `testcontainers/test.sh` runs its rootless-only checks when
   `TESTCONTAINERS_ROOTLESS=true`.
 - Always assert a positive event (a `RESTORES_CACHE_DIRECTORIES` key such as `gradle/modules-2`), never an absence;
   silence passes for a run that did nothing.

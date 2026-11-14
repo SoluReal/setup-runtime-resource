@@ -5,7 +5,7 @@ set -euo pipefail
 # every test's test.sh against the deep merge of all source.yml files. Needs mikefarah yq v4.
 
 usage() {
-  echo "usage: $0 <base pipeline> [--no-rootless] [--debian-proxy URL]" >&2
+  echo "usage: $0 <base pipeline> [--no-rootless] [--debian-proxy URL] [--proxy URL --proxy-ca FILE]" >&2
   exit 2
 }
 
@@ -16,16 +16,21 @@ export TASK_FILE=repo/test/resources/task.yml
 base=""
 rootless=true
 debian_proxy=""
+proxy=""
+proxy_ca=""
 while (($#)); do
   case "$1" in
     --no-rootless) rootless=false ;;
     --debian-proxy) debian_proxy="${2:?--debian-proxy needs a URL}"; shift ;;
+    --proxy) proxy="${2:?--proxy needs a URL}"; shift ;;
+    --proxy-ca) proxy_ca="${2:?--proxy-ca needs a PEM file}"; shift ;;
     -*) usage ;;
     *) [[ -z "$base" ]] || usage; base="$1" ;;
   esac
   shift
 done
 [[ -f "$base" ]] || usage
+[[ -z "$proxy_ca" || -f "$proxy_ca" ]] || { echo "--proxy-ca: no such file: $proxy_ca" >&2; exit 1; }
 
 export TMP_DIR
 TMP_DIR="$(mktemp -d)"
@@ -58,9 +63,11 @@ for test in "${tests[@]}"; do source_entries "$test"; done | awk -F'\t' '
   END { exit failed }'
 
 apply_local_flags() {
-  ROOTLESS="$rootless" PROXY="$debian_proxy" yq '(. // {})
+  ROOTLESS="$rootless" DEBIAN_PROXY="$debian_proxy" PROXY="$proxy" PROXY_CA="$proxy_ca" yq '(. // {})
     | with(select(strenv(ROOTLESS) == "false" and .testcontainers.rootless != null); .testcontainers.rootless = false)
-    | with(select(strenv(PROXY) != ""); .debian_proxy = strenv(PROXY))' "$1"
+    | with(select(strenv(DEBIAN_PROXY) != ""); .debian_proxy = strenv(DEBIAN_PROXY))
+    | with(select(strenv(PROXY) != ""); .proxy.url = strenv(PROXY))
+    | with(select(strenv(PROXY_CA) != ""); .proxy.ca_certificate = load_str(strenv(PROXY_CA)))' "$1"
 }
 
 for test in "${tests[@]}"; do

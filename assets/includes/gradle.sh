@@ -10,6 +10,17 @@ org.gradle.parallel=true
 # The default <project>/.gradle is a fresh checkout every build, so the config cache would never be reused.
 org.gradle.projectcachedir=$GRADLE_USER_HOME
 EOF
+  # Set by the resource's proxy option; Gradle ignores *_proxy.
+  if [[ -n "${SETUP_RUNTIME_PROXY_HOST:-}" ]]; then
+    local scheme
+    for scheme in http https; do
+      cat <<EOF >> "$GRADLE_USER_HOME"/gradle.properties
+systemProp.$scheme.proxyHost=$SETUP_RUNTIME_PROXY_HOST
+systemProp.$scheme.proxyPort=$SETUP_RUNTIME_PROXY_PORT
+systemProp.$scheme.nonProxyHosts=$SETUP_RUNTIME_NON_PROXY_HOSTS
+EOF
+    done
+  fi
   while IFS='=' read -r name value ; do
     if [[ $name == GRADLE_PROP_* ]]; then
       prop_name=$(echo "${name#GRADLE_PROP_}" | tr '_' '.')

@@ -12,6 +12,7 @@ source $ROOT_DIR/installers/sdkman.sh
 source $ROOT_DIR/installers/node.sh
 source $ROOT_DIR/installers/pyenv.sh
 source $ROOT_DIR/installers/golang.sh
+source $ROOT_DIR/installers/proxy.sh
 
 dest=$1
 
@@ -44,6 +45,9 @@ export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload"
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
 export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
 export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
+export proxy_url=$(jq -r '(.source.proxy.url // "")' <<< "$payload")
+export proxy_no_proxy=$(jq -r '(.source.proxy.no_proxy // "localhost,127.0.0.1,::1")' <<< "$payload")
+export proxy_ca_certificate=$(jq -r '(.source.proxy.ca_certificate // "")' <<< "$payload")
 
 export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
 
@@ -62,6 +66,9 @@ dependencies="
   $(testcontainers_get_dependencies)
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
+
+# Before the first download; mmdebstrap's apt and the hooks inherit the proxy environment.
+proxy_configure
 
 info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 
