@@ -359,22 +359,30 @@ Please open an issue if your package manager is not supported or not working for
 
 ### Where the caches live
 
-`MAVEN_USER_HOME` (`$CACHE_DIRECTORY/maven`, holding both the local repository and the distributions `mvnw`
-downloads), `GRADLE_USER_HOME` (`$CACHE_DIRECTORY/gradle`) and the npm/yarn/pnpm caches all live *directly* in the
-task cache directory. Nothing is compressed into an archive first, so a build no longer pays a full
-compress-and-extract of the whole dependency tree on every run - which for a multi-GB Gradle cache is a meaningful
-chunk of build time.
+Add a task cache to your task and the resource points each package manager at it, under `$CACHE_DIRECTORY`
+(`cache/` in the task's working directory by default):
 
-SDKMAN, NVM and pyenv are **not** cached. Each keeps its state at a path the tool fixes
-(`$SDKMAN_DIR/candidates`, `$NVM_DIR/versions/node`, `$PYENV_ROOT/versions`), inside the rootfs and baked in at
-image build time, so there is no environment variable that moves it onto the cache volume. The versions your
-`source` asks for ship in the image and cost nothing; a `sdk install`, `nvm install` or `pyenv install` the task
-runs for some *other* version is redone on every build. Ask for it in `source` instead and it is built once, when
-the rootfs is.
+```yaml
+caches:
+  - path: cache
+```
 
-Because the caches are used in place they only grow. Set the task param `MAX_CACHE_SIZE_MB` to clear the whole
-cache directory at the end of a build that leaves it larger than that. Archives and tool directories left behind by
-older versions of this resource are removed at task start.
+| Tool | Location |
+| --- | --- |
+| Maven | `$CACHE_DIRECTORY/maven` (`MAVEN_USER_HOME`): the local repository and the distributions `mvnw` downloads |
+| Gradle | `$CACHE_DIRECTORY/gradle` (`GRADLE_USER_HOME`): dependencies, wrapper distributions and the build cache |
+| npm, yarn, pnpm | `$CACHE_DIRECTORY/npm`, `$CACHE_DIRECTORY/yarn`, `$CACHE_DIRECTORY/pnpm` |
+| Docker images | `$CACHE_DIRECTORY/docker`: the images your task ran, with testcontainers enabled |
+
+The first build on a worker downloads everything; later builds reuse what is already there.
+
+The Java, Maven, Gradle, Node and Python versions you list in `source` are built into the image, so they are
+available on every build without a download. A version the task installs itself (`sdk install`, `nvm install`,
+`pyenv install`, or a `.sdkmanrc`/`.nvmrc` naming a version that isn't in `source`) is downloaded again on every
+build. Add it to `source` instead.
+
+The cache grows as your dependencies change. To cap it, set the task param `MAX_CACHE_SIZE_MB`: when a build ends
+with the cache larger than that, the whole cache is cleared and the next build starts cold.
 
 ### Reading the cache log
 
