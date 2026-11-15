@@ -2,6 +2,11 @@
 
 export MAVEN_USER_HOME="$CACHE_DIRECTORY/maven"
 export MAVEN_LOCAL_REPO="$MAVEN_USER_HOME/repository"
+# Java takes user.home from passwd, not $HOME, so a root task would read /root/.m2 and miss the cache.
+case " ${MAVEN_ARGS:-} " in
+  *" -Dmaven.repo.local="*) ;;
+  *) export MAVEN_ARGS="${MAVEN_ARGS:+$MAVEN_ARGS }-Dmaven.repo.local=$MAVEN_LOCAL_REPO" ;;
+esac
 
 function create_m2_dir() {
     mkdir -p "$RUNTIME_HOME/.m2" "$MAVEN_USER_HOME" "$MAVEN_LOCAL_REPO"
