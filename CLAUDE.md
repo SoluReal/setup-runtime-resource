@@ -55,7 +55,7 @@ Caching invariants:
 
 ## CI (`ci/pipeline.yml`)
 
-`build` → `test` (runs every test and `full`; all of them gate the release) → `publish-major/minor/patch`.
+`build` → `test` (triggered by hand; runs every test and `full`; all of them gate the release) → `publish-major/minor/patch`.
 
 Public repo: only `((var))` references, no literals, no vars file. The private deploy repo supplies the values and
 sets the pipeline that `test/pipeline.sh ci/pipeline.yml` renders.
