@@ -90,6 +90,7 @@ The resource `source` configuration supports the following options:
 | `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
 | `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
+| `build_stats`                 | Log rootfs build time per phase and size per directory (see [Build timing and size](#build-timing-and-size)).            | `false` |
 | `dependency_download_retries` | Number of times to retry a failed download during rootfs creation (see [Retries](#retries)). `0` disables retries.        | `0`     |
 
 ## Tasks run as a non-root user
@@ -418,9 +419,9 @@ time your job runs when using e.g. [testcontainers](https://testcontainers.com/)
 
 ## Build timing and size
 
-The resource logs `[timing] phase=<name> seconds=N` (mmdebstrap, tar, chown, the whole `in`), `[timing] hook=<name>
-seconds=N` per rootfs hook and `[size] path=<dir> kb=N` for the largest rootfs directories in the `get` step's log.
-Grep for `[timing]` or `[size]` to see where build time and image size go.
+With `build_stats: true`, the resource logs `[timing] phase=<name> seconds=N` (mmdebstrap, tar, chown, the whole
+`in`), `[timing] hook=<name> seconds=N` per rootfs hook and `[size] path=<dir> kb=N` for the largest rootfs
+directories in the `get` step's log. Grep for `[timing]` or `[size]` to see where build time and image size go.
 
 ## Rootless testcontainers
 

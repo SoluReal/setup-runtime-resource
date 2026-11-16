@@ -7,3 +7,4 @@ dependencies:
   - curl
 dependency_download_retries: 3
 verbose: true
+build_stats: true

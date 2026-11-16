@@ -60,6 +60,7 @@ function info_spinner() {
 
 # Greppable timing line: `[timing] <label> seconds=N`, N counted from $2 (a $SECONDS value, default shell start).
 function timing_line() {
+  [[ "${build_stats:-}" == true ]] || return 0
   printf '[timing] %s seconds=%s\n' "$1" "$(( SECONDS - ${2:-0} ))"
 }
 
@@ -72,6 +73,7 @@ function time_hook() {
 
 # `log_sizes <rootfs> <path>...`: one `[size] path=<path> kb=<n>` line per path that exists in the rootfs.
 function log_sizes() {
+  [[ "${build_stats:-}" == true ]] || return 0
   local root=$1 p
   shift
   for p in "$@"; do
