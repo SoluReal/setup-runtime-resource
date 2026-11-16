@@ -43,7 +43,7 @@ export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payloa
 export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload")
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
 export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
-export build_tools=$(jq -r '(.source.build_tools // "true")' <<< "$payload")
+export build_tools=$(jq -r '(.source.build_tools | if . == null then "true" else tostring end)' <<< "$payload")
 export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
 
 export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
