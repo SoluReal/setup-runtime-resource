@@ -65,8 +65,6 @@ dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | x
 
 info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
 
-WORK_ROOTFS="/tmp/work-rootfs.tar"
-
 DEBIAN_VERSION=trixie
 if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
   install -m 0755 -d /etc/apt/keyrings
@@ -125,23 +123,37 @@ args+=(
   --dpkgopt='path-exclude=/usr/share/info/*' \
   --skip=output/dev \
   --hook-dir="$ROOT_DIR/hooks" \
-  "$DEBIAN_VERSION" "$WORK_ROOTFS"
+  --format=tar \
+  "$DEBIAN_VERSION" -
 )
 
-log_on_error mmdebstrap "${args[@]}"
+mkdir -p "$dest/rootfs/"
+
+# Extracting as root keeps ownership as before (directory output would leave mapped subuids in
+# unshare mode). Only stderr is captured: stdout is the tar stream, which log_on_error would swallow.
+mmdebstrap_log=$(mktemp)
+tar_args=( -x -C "$dest/rootfs/" --exclude=./var/cache/apt --exclude=./var/lib/apt/lists --exclude=./tmp )
+set +e
+if [ "$VERBOSE" = "true" ]; then
+  mmdebstrap "${args[@]}" | tar "${tar_args[@]}"
+else
+  mmdebstrap "${args[@]}" 2>"$mmdebstrap_log" | tar "${tar_args[@]}"
+fi
+status=$?
+set -e
+if [ $status -ne 0 ]; then
+  cat "$mmdebstrap_log"
+  error "failed to setup-runtime. You can set verbose: true to enable more verbose logging."
+  exit $status
+fi
+rm -f "$mmdebstrap_log"
 
 kill $INFO_LOGGER_PID
 trap - EXIT
 
-mkdir -p "$dest/rootfs/"
-tar --delete -f $WORK_ROOTFS ./var/cache/apt ./var/lib/apt/lists ./tmp
-tar -xf "$WORK_ROOTFS" -C "$dest/rootfs/"
-
-# /tmp is stripped from the tarball above; recreate it writable for the
-# non-root task user.
+# /tmp is excluded from the tar; recreate it writable for the non-root task user.
 mkdir -p "$dest/rootfs/tmp"
 chmod 1777 "$dest/rootfs/tmp"
-rm $WORK_ROOTFS
 mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
