@@ -65,6 +65,42 @@ function output_from_marker() {
   awk -v marker="$TASK_START_MARKER" 'index($0, marker) { seen = 1 } seen' "$log"
 }
 
+# Prints a finished build's events, one JSON per line. The stream stays open after `end`, and
+# `fly curl` leaves its curl child behind when killed, so run curl itself and kill it there.
+function build_events() {
+  local build_id="$1" token fd line
+  token="$(fly curl /api/v1/info --print-and-exit | sed -n 's/.*bearer \([^"]*\)".*/\1/p')"
+  coproc EVENTS { exec curl -fsN -H "Authorization: bearer $token" "$FLY_API_URL/api/v1/builds/$build_id/events"; }
+  fd="${EVENTS[0]}"
+  while IFS= read -r -u "$fd" line; do
+    [[ "$line" == "event: end" ]] && break
+    [[ "$line" == "data: "* ]] && echo "${line#data: }"
+  done
+  kill "$EVENTS_PID" 2> /dev/null || true
+}
+
+# The build log doesn't say which step a line came from, and the check and repo get log the same
+# line, so read the setup-runtime get steps' own events.
+function require_rootfs_cache_hit() {
+  local job="$1" log="$2" build_name build_id events get_ids get_id
+  build_name="$(sed -n "s|^started $PIPELINE/$job #\([0-9]*\)\$|\1|p" "$log" | tail -1)"
+  build_id="$(fly curl "/api/v1/teams/$FLY_TEAM/pipelines/$PIPELINE/jobs/$job/builds/$build_name" 2> /dev/null | jq -r .id)"
+  events="$(build_events "$build_id")"
+  get_ids="$(fly curl "/api/v1/builds/$build_id/plan" 2> /dev/null |
+    jq -r '.. | objects | select(.get.resource? // "" | startswith("setup-runtime-")) | .id')"
+  if [[ -z "$get_ids" ]]; then
+    echo "$job #$build_name: found no setup-runtime get step in build $build_id's plan"
+    return 1
+  fi
+  for get_id in $get_ids; do
+    if ! jq -e --arg id "$get_id" 'select(.event == "log" and .data.origin.id == $id
+        and (.data.payload | contains("found existing resource cache")))' <<< "$events" > /dev/null; then
+      echo "$job #$build_name rebuilt its rootfs (get $get_id) instead of using the resource cache"
+      return 1
+    fi
+  done
+}
+
 # Prints "<steps>|<cache_keys>|<downloads reason>" from a test's test.env (the union of all of them for full).
 function read_test_env() {
   local name="$1" test steps="" cache_keys="" downloads_reason=""
@@ -120,6 +156,8 @@ function run_test() {
       return 1
     fi
   done
+
+  require_rootfs_cache_hit "$job" "$log" || return 1
 
   local output
   output="$(output_from_marker "$log")" || return 1
