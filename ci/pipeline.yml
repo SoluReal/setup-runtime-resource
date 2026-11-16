@@ -42,16 +42,17 @@ resources:
       repository: setup-runtime-resource
       access_token: ((github-apitoken))
 
-  - name: pr-source
+  - name: pull-requests
     type: github-pr
     icon: source-pull
     check_every: never
     webhook_token: ((github-webtoken))
     source:
-      repo: solureal/setup-runtime-resource
+      repository: SoluReal/setup-runtime-resource
       access_token: ((github-apitoken))
-      private_key: ((github-private-key))
       base_branch: master
+      # Opt-in: only PRs with this label get a pipeline; removing it archives the PR's pipeline.
+      labels: [concourse]
 
 jobs:
   - name: build
@@ -98,56 +99,39 @@ jobs:
           FLY_PASSWORD: ((fly-password))
           PIPELINE: setup-runtime-resource
 
-  - name: pr-build-and-test
+  - name: set-pr-pipelines
     serial: true
     plan:
-      - get: repo
-        resource: pr-source
-        trigger: false # don't run on every PR created.
-        params: { depth: 1 }
-      - put: set-pending-status
-        resource: pr-source
-        params:
-          path: repo
-          status: pending
-      - task: build
-        privileged: true
+      - in_parallel:
+        - get: pull-requests
+          trigger: true
+        - get: repo
+          trigger: true # pipeline changes reach the open PR pipelines
+      - load_var: pull_requests
+        file: pull-requests/prs.json
+      - task: render-pr-pipeline
         config:
           platform: linux
           image_resource:
             type: registry-image
             source:
-              repository: concourse/oci-build-task
-          params:
-            IMAGE_PLATFORM: linux/arm64 # ,linux/amd64 disabled for speed now.
-            UNPACK_ROOTFS: true
-          caches:
-            - path: cache
+              repository: ((registry-url))/dockerhubproxy/concourse
+              username: ((registry-username))
+              password: ((registry-password))
           inputs:
             - name: repo
-              path: .
           outputs:
-            - name: image
+            - name: rendered
           run:
-            path: build
-      - put: setup-runtime-resource-dev
-        params:
-          image: image/image.tar
-      - get: setup-runtime-full
-      # test/pipeline.sh puts test-full's steps here.
-      - in_parallel: full-steps
-    on_success:
-      put: set-build-success-status
-      resource: pr-source
-      params:
-        path: repo
-        status: success
-    on_failure:
-      put: set-failure-status
-      resource: pr-source
-      params:
-        path: repo
-        status: failure
+            path: bash
+            args: [ -ec, "repo/test/pipeline.sh repo/ci/pr-pipeline.yml > rendered/pipeline.yml" ]
+      # A PR that drops out of the list (merged, closed, unlabelled) isn't set again, so Concourse archives its pipeline.
+      - across:
+        - var: pr
+          values: ((.:pull_requests))
+        set_pipeline: setup-runtime-resource-pr
+        file: rendered/pipeline.yml
+        instance_vars: { number: ((.:pr.number)) }
 
   - name: publish-major
     plan:
