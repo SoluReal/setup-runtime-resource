@@ -1,29 +1,25 @@
 #!/bin/bash
 
+export MAVEN_USER_HOME="$CACHE_DIRECTORY/maven"
+export MAVEN_LOCAL_REPO="$MAVEN_USER_HOME/repository"
+# Java takes user.home from passwd, not $HOME, so a root task would read /root/.m2 and miss the cache.
+case " ${MAVEN_ARGS:-} " in
+  *" -Dmaven.repo.local="*) ;;
+  *) export MAVEN_ARGS="${MAVEN_ARGS:+$MAVEN_ARGS }-Dmaven.repo.local=$MAVEN_LOCAL_REPO" ;;
+esac
+
 function create_m2_dir() {
-    mkdir -p $RUNTIME_HOME/.m2
+    mkdir -p "$RUNTIME_HOME/.m2" "$MAVEN_USER_HOME" "$MAVEN_LOCAL_REPO"
     cat <<EOF > $RUNTIME_HOME/.m2/settings.xml
 <settings>
-<localRepository>$RUNTIME_HOME/.m2/repository</localRepository>
+<localRepository>$MAVEN_LOCAL_REPO</localRepository>
 </settings>
 EOF
+    cp "$RUNTIME_HOME/.m2/settings.xml" "$MAVEN_USER_HOME/settings.xml"
 }
 
-function prepare_maven_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_HOME/.m2/repository" ]]; then
-    info "Saving maven cache..."
-    mkdir -p "$CACHE_DIRECTORY/maven"
-    tar -I lz4 -cf "$CACHE_DIRECTORY/maven/archive.tar.lz4" -C $RUNTIME_HOME/.m2 repository
-  fi
-}
+register_cache_dir maven/repository "$MAVEN_LOCAL_REPO"
+register_cache_dir maven/wrapper-dists "$MAVEN_USER_HOME/wrapper/dists"
 
-function restore_maven_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/maven/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
-    info "Restoring maven cache..."
-    restore_lz4_cache "$CACHE_DIRECTORY/maven/archive.tar.lz4" "$RUNTIME_HOME/.m2"
-  fi
-}
-
-register_initialize_callback restore_maven_cache
-register_teardown_callback prepare_maven_cache
+register_initialize_callback create_m2_dir
 register_teardown_callback create_m2_dir

@@ -1,0 +1,42 @@
+# ci/pipeline.yml minus publishing, deployed by ../build-and-test.sh against docker-compose.yml.
+# test/pipeline.sh adds a resource and a manual test-<name> job per test/resources/<name>, plus test-full.
+resource_types:
+- name: setup-runtime-resource
+  type: registry-image
+  privileged: true
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+resources:
+# The git-server serves this repository, so `repo` is laid out as in CI.
+- name: repo
+  type: git
+  source:
+    uri: http://git-server:3000/example.git
+
+# The resource image itself runs the tests: it has bash and curl.
+- name: setup-runtime-image
+  type: registry-image
+  source:
+    repository: registry:5000/setup-runtime-resource
+    tag: ((setup-runtime-resource-tag))
+    insecure: true
+
+jobs:
+- name: test
+  serial: true
+  plan:
+  - in_parallel:
+    - get: repo
+    - get: setup-runtime-image
+  - task: run-tests
+    image: setup-runtime-image
+    file: repo/ci/tasks/run-tests.yml
+    params:
+      FLY_USERNAME: test
+      FLY_PASSWORD: test
+      FLY_API_URL: http://web:8080
+      PIPELINE: setup-runtime
+      TESTS: ((tests))

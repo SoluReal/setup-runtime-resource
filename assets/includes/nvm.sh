@@ -1,36 +1,25 @@
 #!/bin/bash
 
-function prepare_nvm_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -d "$RUNTIME_DIR/nvm/versions" ]]; then
-    info "Saving nvm versions to cache..."
-    mkdir -p "$CACHE_DIRECTORY/nvm"
-    tar -I lz4 -cf "$CACHE_DIRECTORY/nvm/archive.tar.lz4" -C "$RUNTIME_DIR/nvm" versions
-  fi
+# Here rather than in bashrc.sh so an image without node never announces a `node/*` key.
+if [[ "$ENABLE_CACHE" = "true" ]]; then
+  export NPM_CONFIG_CACHE="$CACHE_DIRECTORY/npm"
+  export YARN_CACHE_FOLDER="$CACHE_DIRECTORY/yarn"
+  # pnpm ignores PNPM_STORE_PATH; it reads `store-dir` via npm config resolution.
+  export npm_config_store_dir="$CACHE_DIRECTORY/pnpm"
+
+  register_cache_dir node/npm "$NPM_CONFIG_CACHE"
+  register_cache_dir node/yarn "$YARN_CACHE_FOLDER"
+  register_cache_dir node/pnpm "$npm_config_store_dir"
+fi
+
+# Corepack stays on the image path the `yarn`/`pnpm` versions were prepared into
+# at build time, so they resolve without a download on a cold worker.
+export COREPACK_HOME="$RUNTIME_DIR/corepack"
+
+function prepare_node_cache_dirs() {
+  [[ "$ENABLE_CACHE" = "true" ]] || return 0
+
+  mkdir -p "$NPM_CONFIG_CACHE" "$YARN_CACHE_FOLDER" "$npm_config_store_dir"
 }
 
-# A cached node version can be incomplete (e.g. a prior run was killed mid-install)
-function prune_incomplete_nvm_versions() {
-  local versions_dir="$RUNTIME_DIR/nvm/versions/node"
-  local version_dir
-
-  [[ -d "$versions_dir" ]] || return 0
-
-  for version_dir in "$versions_dir"/*/; do
-    [[ -d "$version_dir" ]] || continue
-    if [[ ! -x "$version_dir/bin/node" ]]; then
-      error "Discarding incomplete cached node version $(basename "$version_dir")"
-      rm -rf "$version_dir"
-    fi
-  done
-}
-
-function restore_nvm_cache() {
-  if [[ "$ENABLE_CACHE" = "true" && -f "$CACHE_DIRECTORY/nvm/archive.tar.lz4" && "$LZ4_INSTALLED" = "true" ]]; then
-    info "Restoring nvm versions from cache..."
-    restore_lz4_cache "$CACHE_DIRECTORY/nvm/archive.tar.lz4" "$RUNTIME_DIR/nvm"
-    prune_incomplete_nvm_versions
-  fi
-}
-
-register_initialize_callback restore_nvm_cache
-register_teardown_callback prepare_nvm_cache
+register_initialize_callback prepare_node_cache_dirs

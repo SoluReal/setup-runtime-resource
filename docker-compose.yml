@@ -7,7 +7,6 @@ services:
       - "3142:3142"
     restart: unless-stopped
 
-  # Our registry which we push test resources to.
   registry:
     image: registry:3
     ports:
@@ -70,11 +69,9 @@ services:
     environment:
       CONCOURSE_TSA_HOST: web:2222
       CONCOURSE_RUNTIME: "containerd"
-      # allow to reach the registry container
       CONCOURSE_CONTAINERD_ALLOW_HOST_ACCESS: "true"
       CONCOURSE_CONTAINERD_DNS_PROXY_ENABLE: "true"
-      # full|fuse-only|ignore - how many privileges `privileged: true` tasks get.
-      # Override via CONCOURSE_CONTAINERD_PRIVILEGED_MODE=fuse-only ./build-and-test.sh
+      # full|fuse-only|ignore: privileges `privileged: true` tasks get on the local worker.
       CONCOURSE_CONTAINERD_PRIVILEGED_MODE: "${CONCOURSE_CONTAINERD_PRIVILEGED_MODE:-full}"
     extra_hosts:
       - "apt-cacher:host-gateway"
@@ -85,13 +82,14 @@ services:
         max-file: "5"
         max-size: "10m"
 
-  # Small git server to serve our test resources from
   git-server:
     build:
       context: util/git-server
     container_name: git-server
     volumes:
-      - ./example:/git/repo:ro
+      # Serve the same paths as CI, excluding local keys.
+      - ./test:/git/repo/test:ro
+      - ./ci:/git/repo/ci:ro
     ports:
       - "3000:3000"
     restart: unless-stopped

@@ -1,29 +1,52 @@
 resource_types:
-- name: setup-runtime-resource
-  type: registry-image
-  # Running with privileged is not required and is not recommended for production use.
-  privileged: true
-  source:
-    repository: registry:5000/setup-runtime-resource
-    tag: ((setup-runtime-resource-tag))
-    insecure: true
+  - name: setup-runtime-resource
+    type: registry-image
+    source:
+      repository: solureal/setup-runtime-resource
+      tag: latest
 
 resources:
-- name: setup-runtime
-  type: setup-runtime-resource
-  icon: account-hard-hat
+  - name: setup-runtime
+    type: setup-runtime-resource
+    source:
+      sdkman:
+        enabled: true
+      java:
+        version: 21
+      gradle:
+        wrapper: true
+      nvm:
+        enabled: true
+      nodejs:
+        version: lts
 
-  source:
-    ((SETUP_RUNTIME_SOURCE))
+  - name: source
+    type: git
+    source:
+      uri: ((git-uri))
 
 jobs:
-- name: test-setup-runtime
-  serial: true
-  plan:
-  - get: setup-runtime
-
-  - task: test-image
-    image: setup-runtime
-    privileged: true
-    config:
-      ((TASK_CONFIG))
+  - name: build
+    plan:
+      - in_parallel:
+          - get: setup-runtime
+          - get: source
+            trigger: true
+      - task: build
+        image: setup-runtime
+        config:
+          platform: linux
+          inputs:
+            - name: source
+          # The resource points gradle, npm, pnpm and yarn at $CACHE_DIRECTORY, which is `cache`.
+          caches:
+            - path: cache
+          run:
+            path: bash
+            args:
+              - -ec
+              - |
+                cd source
+                ./gradlew build
+                npm ci
+                npm run build

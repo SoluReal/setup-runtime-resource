@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# Reset
-export Color_Off='\033[0m' # Text Reset
+export Color_Off='\033[0m'
 
-# To print to console with colors
-export Red='\033[0;31m'    # Red
-export Green='\033[0;32m'  # Green
+export Red='\033[0;31m'
+export Green='\033[0;32m'
 
 export RUNTIME_DIR="/var/runtimes"
 export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
@@ -17,8 +15,7 @@ export RUNTIME_USER="runtime"
 export RUNTIME_UID=1000
 export RUNTIME_HOME="/home/$RUNTIME_USER"
 
-# Compute a deterministic hash of the .source from stdin JSON
-compute_hash() {
+hash_source() {
   local json="$1"
   echo "$json" | jq -c .source | sha256sum | awk '{print $1}'
 }
@@ -27,7 +24,7 @@ function info() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1"
 }
 
-function log_info_hook() {
+function info_to_output_file() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1" >> $OUTPUT_FILE
 }
 
@@ -40,11 +37,11 @@ function info_spinner() {
   local status
 
   if [ "$VERBOSE" = "true" ]; then
-    log_info_hook "$progress_message"
+    info_to_output_file "$progress_message"
     wait "$pid"
     status=$?
     printf "\n" >> $OUTPUT_FILE
-    log_info_hook "$finished_message"
+    info_to_output_file "$finished_message"
   else
     while kill -0 "$pid" 2>/dev/null; do
         for i in $(seq 0 3); do
@@ -65,7 +62,6 @@ function error() {
   printf "$Red[setup-runtime] %s$Color_Off\n" "$1" >&2
 }
 
-# Runs curl with retries configured via the `dependency_download_retries`.
 function curl_retry() {
   local max_retries="${dependency_download_retries:-0}"
   local retry_args=()
@@ -78,15 +74,23 @@ function curl_retry() {
 }
 export -f curl_retry
 
+# For installers that download without retrying themselves (sdk, nvm, corepack).
+function retry() {
+  local attempt=0
+  until "$@"; do
+    (( attempt++ < ${dependency_download_retries:-0} )) || return 1
+    sleep 5
+  done
+}
+
 chroot_exec() {
     local rootfs="${1}"
     shift
     local cmd="$*"
-    # Use fakechroot to simulate chroot.
     fakechroot chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
 }
 
-function set_env() {
+function add_task_env_var() {
   local env_line="${1}"
 
   touch /tmp/env_vars

@@ -1,0 +1,13 @@
+sdkman:
+  enabled: true
+java:
+  version: 21.0.4-tem
+  extra_versions:
+    - 25-graalce
+maven:
+  version: 3.9.9
+gradle:
+  version: 8.5
+minimal_image: true
+verbose: true
+dependency_download_retries: 3

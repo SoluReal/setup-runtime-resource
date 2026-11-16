@@ -20,8 +20,6 @@ if [[ "$pyenv_enabled" = "true" ]]; then
   echo "export PYENV_ROOT=$PYENV_RUNTIME_DIR" >> $chroot_dir$RUNTIME_HOME/.bashrc
   echo "[[ -d \$PYENV_ROOT/bin ]] && export PATH=\"\$PYENV_ROOT/bin:\$PATH\"" >> $chroot_dir$RUNTIME_HOME/.bashrc
 
-  set_env "PYENV_ENABLED=true"
+  add_task_env_var "PYENV_ENABLED=true"
   add_metadata "pyenv" "true"
-
-  cp "$ROOT_DIR/includes/pyenv.sh" "$chroot_dir/$RUNTIME_DIR/plugins/pyenv.sh"
 fi

@@ -2,7 +2,7 @@ FROM debian:trixie-slim AS resource
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      mmdebstrap jq bash ca-certificates gnupg curl fakechroot fakeroot unzip zip \
+      mmdebstrap jq bash ca-certificates gnupg curl fakechroot fakeroot unzip zip libatomic1 \
     && \
     rm -rf /var/lib/apt/lists/*
 

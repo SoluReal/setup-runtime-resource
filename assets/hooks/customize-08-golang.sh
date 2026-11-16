@@ -9,7 +9,6 @@ if [[ -n "$golang_version" ]]; then
   export GOROOT="$chroot_dir$GOLANG_RUNTIME_DIR"
   mkdir -p "$GOROOT"
 
-  # Detect architecture
   arch=$(uname -m)
   case $arch in
     x86_64) goarch="amd64" ;;
@@ -27,14 +26,12 @@ if [[ -n "$golang_version" ]]; then
   ) &
   info_spinner "Downloading and extracting Go" "Go installed" $!
 
-  # Go extracts to a directory named 'go', we want it in GOLANG_RUNTIME_DIR
   mv "$chroot_dir$RUNTIME_DIR/go"/* "$GOROOT/"
   rmdir "$chroot_dir$RUNTIME_DIR/go"
 
   if [[ "$minimal_image" = "true" ]]; then
-    # test/ and api/ are Go's own compiler test suite and API-compatibility
-    # checks - not used by `go build`/`go test`/`go vet` on user code, so drop
-    # them to shrink the image.
+    # test/ and api/ are Go's own test suite and API checks, unused by go build/test/vet;
+    # dropped to shrink the image.
     rm -rf "$GOROOT/test" "$GOROOT/api"
   fi
 

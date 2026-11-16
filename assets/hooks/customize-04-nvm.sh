@@ -22,6 +22,6 @@ if [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]]; then
   cp "$ROOT_DIR/includes/nvm.sh" "$chroot_dir/$RUNTIME_DIR/plugins/nvm.sh"
 fi
 if [[ "$nvm_enabled" = "true" ]]; then
-  set_env "NVM_ENABLED=true"
+  add_task_env_var "NVM_ENABLED=true"
   add_metadata "nvm" "true"
 fi

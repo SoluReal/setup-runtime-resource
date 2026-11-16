@@ -9,5 +9,4 @@ if [[ -z "$version" || "$version" == "null" ]]; then
   version="noop"
 fi
 
-# Return the version in Concourse's expected format
 jq -n --arg ref "$version" '{"version": {"ref": $ref}}'

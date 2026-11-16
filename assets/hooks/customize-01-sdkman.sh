@@ -11,14 +11,20 @@ function sdkman_install() {
   local installer
   installer=$(mktemp)
   curl_retry -s 'https://get.sdkman.io?ci=true&rcupdate=false' -o "$installer"
-  bash "$installer"
+  local attempt=0
+  # The installer's own downloads don't retry, and it refuses to install over a partial install.
+  until bash "$installer"; do
+    (( attempt++ < ${dependency_download_retries:-0} )) || return 1
+    rm -rf "$SDKMAN_DIR"
+    sleep 5
+  done
   rm -f "$installer"
   echo "export SDKMAN_DIR=$SDKMAN_RUNTIME_DIR; source $SDKMAN_RUNTIME_DIR/bin/sdkman-init.sh" >> $chroot_dir$RUNTIME_HOME/.bashrc
   mkdir -p  "$SDKMAN_DIR/etc"
   echo "sdkman_selfupdate_feature=false" > "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_answer=true" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_colour_enable=true" >> "$SDKMAN_DIR/etc/config"
-  # Auto_env doesn't seem to work so disabled (for now at least)
+  # sdkman_auto_env doesn't work here, so it is disabled.
   echo "sdkman_auto_env=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_auto_complete=false" >> "$SDKMAN_DIR/etc/config"
   echo "sdkman_checksum_enable=true" >> "$SDKMAN_DIR/etc/config"
@@ -34,6 +40,6 @@ if [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdk
 fi
 
 if [[ "$sdkman_enabled" = "true" ]]; then
-  set_env "SDKMAN_ENABLED=true"
+  add_task_env_var "SDKMAN_ENABLED=true"
   add_metadata "sdkman" "true"
 fi

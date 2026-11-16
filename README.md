@@ -68,7 +68,7 @@ The resource `source` configuration supports the following options:
 
 | Option                        | Description                                                                                                               | Default |
 |-------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
-| `dependencies`                | A list of Debian packages to install.                                                                                     | `[]`    |
+| `dependencies`                | A list of Debian packages to install. `ca-certificates` is always installed.                                              | `[]`    |
 | `hook`                        | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
 | `verbose`                     | Enable verbose logging during rootfs creation.                                                                            | `false` |
 | `debug`                       | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
@@ -90,7 +90,7 @@ The resource `source` configuration supports the following options:
 | `testcontainers.rootless`     | Run a rootless podman daemon instead of dockerd (see [Rootless testcontainers](#rootless-testcontainers) below).          | `false` |
 | `telemetry.disable`           | Disable telemetry (if any).                                                                                               | `false` |
 | `minimal_image`               | Strip build/IDE-only content to shrink the rootfs (see [Minimal image](#minimal-image) below).                            | `false` |
-| `dependency_download_retries` | Number of times to retry a failed dependency download (`curl`) during rootfs creation. `0` disables retries.              | `0`     |
+| `dependency_download_retries` | Number of times to retry a failed download during rootfs creation (see [Retries](#retries)). `0` disables retries.        | `0`     |
 
 ## Tasks run as a non-root user
 
@@ -104,6 +104,9 @@ The one exception is `testcontainers.enabled: true` with `testcontainers.rootles
 that combination still runs the task as `root`. Prefer
 [rootless testcontainers](#rootless-testcontainers) instead.
 
+The rootfs has no working package manager: the dpkg database is removed during the build, so neither the `hook` nor
+a task can `apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
+
 ## Minimal image
 
 When `minimal_image: true` is set, the resource strips content from the rootfs that isn't needed to compile or
@@ -115,6 +118,7 @@ run code, but is not safe to remove unconditionally for every user:
   used by `go build`, `go test`, or `go vet` on your code.
 - Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
   `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
+- apt and dpkg's helper tools (`apt-get`, `dpkg-*`), which can't run anyway without the dpkg database.
 
 This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
 actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
@@ -132,8 +136,9 @@ source:
   dependency_download_retries: 3
 ```
 
-This is implemented via curl's own `--retry` handling, which backs off exponentially between attempts (1s,
-2s, 4s, ..., capped at 10 minutes).
+Downloads use curl's own `--retry`, which backs off exponentially between attempts (1s, 2s, 4s, ..., capped at 10
+minutes). The SDKMAN installer, `sdk install`, `nvm install` and `corepack prepare` download without retries, so a
+failed install is rerun up to that many times, 5s apart (SDKMAN itself from scratch).
 
 ## Supported runtime options
 
@@ -165,7 +170,6 @@ The following runtime environment variables are available:
 |---------------------|-------------------------------------------------------------------------|---------|
 | `DEBUG`             | Enable debug loggging on runtime                                        | `false` |
 | `ENABLE_CACHE`      | Enable caching                                                          | `true`  |
-| `MAX_CACHE_SIZE_MB` | When the cache size is over the MAX_CACHE_SIZE_MB, the cache is pruned. | `""`    |
 
 ## Docker registry logins
 
@@ -358,10 +362,54 @@ as possible to let it work with concourse caching.
 
 Please open an issue if your package manager is not supported or not working for your usecase.
 
-You can run out of disk space pretty easily when caching aggressively without cache pruning. Although this resource
-tries to prune the cache automatically, it might not work in all cases.
+### Where the caches live
 
-Therefore it might be a good idea to set a `MAX_CACHE_SIZE_MB` paramt to prevent the cache from growing too large.
+Add a task cache to your task and the resource points each package manager at it, under `$CACHE_DIRECTORY`
+(`cache/` in the task's working directory by default):
+
+```yaml
+caches:
+  - path: cache
+```
+
+| Tool | Location |
+| --- | --- |
+| Maven | `$CACHE_DIRECTORY/maven` (`MAVEN_USER_HOME`): the local repository and the distributions `mvnw` downloads |
+| Gradle | `$CACHE_DIRECTORY/gradle` (`GRADLE_USER_HOME`): dependencies, wrapper distributions and the build cache |
+| npm, yarn, pnpm | `$CACHE_DIRECTORY/npm`, `$CACHE_DIRECTORY/yarn`, `$CACHE_DIRECTORY/pnpm` |
+| Docker images | `$CACHE_DIRECTORY/docker`: the images your task ran, with testcontainers enabled |
+
+The first build on a worker downloads everything; later builds reuse what is already there.
+
+The Java, Maven, Gradle, Node and Python versions you list in `source` are built into the image, so they are
+available on every build without a download. A version the task installs itself (`sdk install`, `nvm install`,
+`pyenv install`, or a `.sdkmanrc`/`.nvmrc` naming a version that isn't in `source`) is downloaded again on every
+build. Add it to `source` instead.
+
+The cache grows as your dependencies change. To cap it, set the task param `MAX_CACHE_SIZE_MB`: when a build ends
+with the cache larger than that, the whole cache is cleared and the next build starts cold.
+
+### Reading the cache log
+
+A build logs what it moved. There are no lines reporting zero of something, so a first build against empty caches
+prints almost nothing here:
+
+```
+[cache] restore gradle/modules-2 from=local files=8210
+[cache] restore node/npm from=local files=412
+```
+
+`from=` is the question worth asking of a slow build:
+
+| Value | Meaning |
+| --- | --- |
+| `local` | The Concourse task cache already held it. No network call was made - the fast path. |
+
+A key with no line against it had nothing cached anywhere, and whatever it covers is about to be downloaded from
+upstream.
+
+The lines are meant to be grepped as well as read. `[cache] <verb> <key> <field>=<value>...` is stable; new fields
+get appended rather than changing the ones already there.
 
 ### Docker image cache
 

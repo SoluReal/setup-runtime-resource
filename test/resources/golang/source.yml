@@ -1,0 +1,5 @@
+golang:
+  version: 1.22.1
+minimal_image: true
+verbose: true
+dependency_download_retries: 3

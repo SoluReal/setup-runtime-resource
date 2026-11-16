@@ -1,0 +1,21 @@
+# The one test job's task, shared by ci/pipeline.yml and test/pipeline.yml.
+# It triggers the pipeline's own test-* jobs - see ci/tasks/run-tests.sh.
+platform: linux
+
+# No image_resource: the step supplies `image` (the just-built resource image, which has bash and
+# curl); fly itself is downloaded from the ATC at runtime.
+
+inputs:
+  - name: repo
+
+params:
+  FLY_USERNAME:
+  FLY_PASSWORD:
+  PIPELINE:
+  FLY_TEAM:
+  # Override when the task cannot reach the external URL.
+  FLY_API_URL:
+  TESTS:
+
+run:
+  path: repo/ci/tasks/run-tests.sh

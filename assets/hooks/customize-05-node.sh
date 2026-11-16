@@ -15,25 +15,25 @@ if [ -n "$nodejs_version" ]; then
   export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
   source "$NVM_DIR/nvm.sh"
 
-  nvm install "$candidate"
+  retry nvm install "$candidate"
   add_metadata "node" "$(nvm current)"
   npm uninstall -g yarn pnpm || true
 
   if [[ "$minimal_image" = "true" ]]; then
-    # include/ (V8 + Node headers) is only needed by node-gyp to compile native
-    # addons, not to run node/npm/yarn/pnpm - strip it to shrink the image.
+    # include/ (V8 + Node headers) is only needed by node-gyp, not to run node/npm/yarn/pnpm;
+    # stripped to shrink the image.
     rm -rf "$NVM_DIR/versions/node/$(nvm current)/include"
   fi
 
   export COREPACK_HOME="$chroot_dir/$COREPACK_HOME_DIR"
   if [[ -n "$yarn_version" || -n "$pnpm_version" ]]; then
-    # Starting with nodejs 25 corepack is no longer bundled with nodejs.
+    # nodejs 25+ does not bundle corepack.
     npm install -g corepack &
     info_spinner "Installing corepack" "Corepack installed" $!
   fi
 
   if [ -n "$yarn_version" ]; then
-    corepack prepare yarn@${yarn_version} --activate &
+    retry corepack prepare yarn@${yarn_version} --activate &
     info_spinner "Installing yarn $yarn_version" "yarn $yarn_version installed" $!
     add_metadata "yarn" "$yarn_version"
 
@@ -43,7 +43,7 @@ if [ -n "$nodejs_version" ]; then
   fi
 
   if [ -n "$pnpm_version" ]; then
-    corepack prepare pnpm@${pnpm_version} --activate &
+    retry corepack prepare pnpm@${pnpm_version} --activate &
     info_spinner "Installing pnpm $pnpm_version" "pnpm $pnpm_version installed" $!
     add_metadata "pnpm" "$pnpm_version"
   fi
@@ -55,7 +55,7 @@ if [ -n "$nodejs_version" ]; then
       if [ "$bun_version" = "latest" ]; then
         BUN_INSTALL="$chroot_dir/usr/local" bash "$installer"
       else
-        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer" -s -- "bun-v${bun_version}"
+        BUN_INSTALL="$chroot_dir/usr/local" bash "$installer" "bun-v${bun_version}"
       fi
       rm -f "$installer"
     ) &

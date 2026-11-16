@@ -2,25 +2,44 @@
 
 set -euo pipefail
 
-RECREATE_PIPELINE="${RECREATE_PIPELINE:-false}"
+# Builds the resource image and starts the `test` job on the local stack; that job runs the same
+# ci/tasks/run-tests.sh as CI, so a test passing here passes there.
 
-echo "Running setup-runtime tests..."
+TESTS_DIR="test/resources"
 
-export PIPELINE_FILE="${PIPELINE_FILE:-pipeline.yml}"
-# full|fuse-only|ignore - what `privileged: true` tasks get on the local worker.
-# e.g. CONCOURSE_CONTAINERD_PRIVILEGED_MODE=fuse-only ./build-and-test.sh
+PIPELINE="${PIPELINE:-setup-runtime}"
+
+TEST="${TEST:-}"
+
 export CONCOURSE_CONTAINERD_PRIVILEGED_MODE="${CONCOURSE_CONTAINERD_PRIVILEGED_MODE:-full}"
 
-export PIPELINE_NAME="setup-runtime-test"
+available_tests() {
+  local dir
+  for dir in "$TESTS_DIR"/*/; do
+    [[ -f "$dir/source.yml" && -f "$dir/test.sh" ]] && basename "$dir"
+  done
+  echo full
+}
 
-docker-compose -p concource-resource -f docker-compose.yml build git-server
-docker-compose -p concource-resource -f docker-compose.yml up -d
+for name in $TEST; do
+  if [[ "$name" != full && ! -f "$TESTS_DIR/$name/test.sh" ]]; then
+    echo "Unknown test '$name'. Available:" >&2
+    available_tests | sed 's/^/  /' >&2
+    exit 1
+  fi
+done
 
-HASH="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8; echo)"
+echo "Running setup-runtime tests: ${TEST:-all}"
+
+docker-compose -p concource-resource -f docker-compose.yml up -d --build
+# The git-server commits test/ and ci/ only at container start, so recreate it for the current tree.
+docker-compose -p concource-resource -f docker-compose.yml up -d --force-recreate git-server
+
+IMAGE_TAG="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 8; echo)"
 
 docker buildx build \
   -t localhost:5000/setup-runtime-resource:latest \
-  -t localhost:5000/setup-runtime-resource:$HASH \
+  -t localhost:5000/setup-runtime-resource:$IMAGE_TAG \
   --progress=plain \
   --push .
 
@@ -29,33 +48,21 @@ do
   sleep 5
 done
 
-if [[ $RECREATE_PIPELINE = "true" ]]; then
-  fly -t test pipelines --json \
-    | jq -r ".[] | select(.name==\"$PIPELINE_NAME\") | .name" \
-    | xargs -n1 -I{} fly -t test destroy-pipeline -p {} -n
-fi
+# Same generator as the deploy of ci/pipeline.yml; the flags cover how this stack differs from CI's cluster:
+# no unprivileged user namespaces (so dockerd, not rootless podman) and an apt-cacher.
+command -v yq > /dev/null || { echo "test/pipeline.sh needs mikefarah yq v4 (brew install yq)" >&2; exit 1; }
+pipeline_file="$(mktemp)"
+trap 'rm -f "$pipeline_file"' EXIT
+test/pipeline.sh test/pipeline.yml --no-rootless --debian-proxy http://apt-cacher:3142 > "$pipeline_file"
 
-fly -t test set-pipeline -c example/$PIPELINE_FILE -p $PIPELINE_NAME -n \
-  --yaml-var "TASK_CONFIG=$(cat example/task.yml)" \
-  --yaml-var "SETUP_RUNTIME_SOURCE=$(cat example/runtime-source.yml)
-debian_proxy: http://apt-cacher:3142
-" \
-  --var "setup-runtime-resource-tag=$HASH"
+fly -t test set-pipeline -c "$pipeline_file" -p "$PIPELINE" -n \
+  --var "setup-runtime-resource-tag=$IMAGE_TAG" \
+  --var "tests=$TEST"
 
-fly -t test unpause-pipeline -p $PIPELINE_NAME
+fly -t test unpause-pipeline -p "$PIPELINE"
 
-# Clear the cache so we can run 2 jobs, one to verify the cache restore.
-fly -t test clear-task-cache -j=setup-runtime-test/test-setup-runtime --step=test-image -c cache -n
-# When a new git-server is created all previous versions need to be removed.
-echo y | fly -t test clear-versions --resource=setup-runtime-test/example || true
+# -n, not `echo y |`: fly reads its confirmation from /dev/tty, so a piped answer
+# is ignored - it then either bails out or, when a tty is present, blocks forever.
+fly -t test clear-versions --resource="$PIPELINE/repo" -n || true
 
-fly -t test trigger-job -j $PIPELINE_NAME/test-setup-runtime --watch
-
-# Second run for cache check.
-OUTPUT=$(fly -t test trigger-job -j "$PIPELINE_NAME/test-setup-runtime" --watch 2>&1 | tee /dev/tty)
-
-# Check if "Downloading" appears in the output
-if echo "$OUTPUT" | grep -Eq "Download|Pulling"; then
-    echo "Error: 'Downloading' found in logs while the second run should only use caches."
-    exit 1
-fi
+fly -t test trigger-job -j "$PIPELINE/test" --watch

@@ -1,0 +1,12 @@
+nodejs:
+  version: lts
+  pnpm:
+    version: 9.15.0
+  bun:
+    version: latest
+  yarn:
+    version: 4.10.2
+telemetry:
+  disable: true
+verbose: true
+dependency_download_retries: 3

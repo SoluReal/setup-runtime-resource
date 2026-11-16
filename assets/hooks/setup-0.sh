@@ -7,7 +7,7 @@ set -eo pipefail
 chroot_dir="$1"
 source $ROOT_DIR/common.sh
 
-log_info_hook "Installing dependencies"
+info_to_output_file "Installing dependencies"
 
 if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
   SOURCEPARTS="/etc/apt/sources.d/"

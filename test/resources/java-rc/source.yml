@@ -1,0 +1,4 @@
+sdkman:
+  enabled: true
+verbose: true
+dependency_download_retries: 3

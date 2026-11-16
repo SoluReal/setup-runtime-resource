@@ -1,11 +1,8 @@
-# File is included in the bashrc file and is expected to be executed on task startup.
 
-# Reset
-export Color_Off='\033[0m' # Text Reset
+export Color_Off='\033[0m'
 
-# To print to console with colors
-export Red='\033[0;31m'    # Red
-export Green='\033[0;32m'  # Green
+export Red='\033[0;31m'
+export Green='\033[0;32m'
 export RUNTIME_DIR="/var/runtimes"
 export RUNTIME_USER="runtime"
 export RUNTIME_HOME="/home/$RUNTIME_USER"
@@ -20,33 +17,38 @@ function error() {
   printf "$Red%s$Color_Off\n" "$1" >&2
 }
 
+function cache_event() {
+  printf "$Green[cache] %s$Color_Off\n" "$*"
+}
+
+function count_files() {
+  local dir="$1"
+  [[ -d "$dir" ]] || { echo 0; return 0; }
+  find "$dir" -type f 2>/dev/null | wc -l | tr -d ' '
+}
+
+# A cache never reports zero of something, so a directory of only empty dirs logs nothing.
+function log_cache_restore() {
+  local files
+  files="$(count_files "$2")"
+  if (( files > 0 )); then
+    cache_event "restore $1 from=local files=$files"
+  fi
+}
+
 declare -a TEARDOWN_CALLBACKS=()
-declare -a ON_INITIALIZE_CALLBACKS=()
+declare -a INITIALIZE_CALLBACKS=()
 
 function register_teardown_callback() {
   TEARDOWN_CALLBACKS+=("$1")
 }
 
 function register_initialize_callback() {
-  ON_INITIALIZE_CALLBACKS+=("$1")
-}
-
-# Extract an lz4 cache tar, discarding it if it turns out to be corrupt so a
-# broken cache aborts caching for that runtime instead of the whole task.
-function restore_lz4_cache() {
-  local archive="$1"
-  local dest_dir="$2"
-  shift 2
-
-  mkdir -p "$dest_dir"
-  if ! tar -I lz4 -xf "$archive" -C "$dest_dir" "$@"; then
-    error "Cached archive $(basename "$archive") is corrupt, discarding it"
-    rm -f "$archive"
-  fi
+  INITIALIZE_CALLBACKS+=("$1")
 }
 
 # Empty $CACHE_DIRECTORY while keeping the directory itself, since Concourse
-# owns the mount point.
+# owns the mount point. Only used when caching is switched off entirely.
 function clear_cache_directory() {
   if [[ ! -d "$CACHE_DIRECTORY" ]]; then
     return 0
@@ -54,6 +56,49 @@ function clear_cache_directory() {
 
   # Don't fail on this, you can receive Device or resource busy
   find "$CACHE_DIRECTORY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+}
+
+# register_cache_dir <key> <dir>: each plugin registers its own keys, so an image without a
+# tool never announces its key. Only used to log what the task cache already held.
+CACHE_KEYS=()
+declare -A CACHE_PATHS=()
+
+function register_cache_dir() {
+  CACHE_KEYS+=("$1")
+  CACHE_PATHS["$1"]="$2"
+}
+
+function log_cached_dirs() {
+  [[ "$ENABLE_CACHE" = "true" ]] || return 0
+
+  local key
+  for key in "${CACHE_KEYS[@]}"; do
+    log_cache_restore "$key" "${CACHE_PATHS[$key]}"
+  done
+
+  return 0
+}
+
+# In-place caches only grow, so MAX_CACHE_SIZE_MB is the one bound on worker disk.
+function prune_oversized_cache() {
+  [[ -n "${MAX_CACHE_SIZE_MB:-}" && -d "$CACHE_DIRECTORY" ]] || return 0
+  if ! [[ "$MAX_CACHE_SIZE_MB" =~ ^[0-9]+$ ]]; then
+    error "MAX_CACHE_SIZE_MB must be a whole number of megabytes, got '$MAX_CACHE_SIZE_MB'"
+    return 1
+  fi
+
+  local size_mb
+  size_mb=$(du -sm "$CACHE_DIRECTORY" | cut -f1)
+  if (( size_mb > MAX_CACHE_SIZE_MB )); then
+    info "Cache is ${size_mb} MB, above MAX_CACHE_SIZE_MB=$MAX_CACHE_SIZE_MB; clearing $CACHE_DIRECTORY"
+    clear_cache_directory
+  fi
+}
+
+# Remove legacy lz4 archives and tool dirs that now live in the rootfs.
+function remove_legacy_cache_layout() {
+  rm -rf "$CACHE_DIRECTORY"/gradle/archive.tar.lz4 "$CACHE_DIRECTORY"/maven/archive.tar.lz4 \
+    "$CACHE_DIRECTORY"/sdkman "$CACHE_DIRECTORY"/nvm "$CACHE_DIRECTORY"/pyenv "$CACHE_DIRECTORY"/corepack
 }
 
 function teardown_setup_runtime() {
@@ -74,24 +119,10 @@ function teardown_setup_runtime() {
       done
       unset _pids _pid
 
-      if [[ ! -d "$CACHE_DIRECTORY" ]]; then
-        return 0
-      fi
+      prune_oversized_cache
 
-      size_bytes=$(du -sb "$CACHE_DIRECTORY" | awk '{print $1}')
-
-      if [[ -n "$MAX_CACHE_SIZE_MB" ]]; then
-        local max_size=$(($MAX_CACHE_SIZE_MB * 1024 * 1024))
-
-        if (( size_bytes > max_size )); then
-          info "Cache size is $(du -sh "$CACHE_DIRECTORY" 2>/dev/null) which is above $MAX_CACHE_SIZE_MB MB. Cleaning up $CACHE_DIRECTORY..."
-          clear_cache_directory
-          info "Cleanup completed."
-        fi
-      fi
-
-      if [[ "$DEBUG" = "true" ]]; then
-        info "Cache size in $CACHE_DIR:"
+      if [[ "$DEBUG" = "true" && -d "$CACHE_DIRECTORY" ]]; then
+        info "Cache size in $CACHE_DIRECTORY:"
         info "$(du -sh "$CACHE_DIRECTORY" 2>/dev/null)" || true
       fi
     fi
@@ -111,7 +142,7 @@ if [[ -d "$RUNTIME_DIR/plugins" ]]; then
   done
 fi
 
-# Store the main pid so we can make sure that we only execute the traps on the main bash process.
+# Main pid, so traps run only in the main bash process.
 if [[ ! -f /tmp/main_pid ]]; then
   echo $$ > /tmp/main_pid
 fi
@@ -121,6 +152,7 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
 
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     mkdir -p "$CACHE_DIRECTORY"
+    remove_legacy_cache_layout
 
     if [[ "$DEBUG" = "true" ]]; then
       info "Cache size in $CACHE_DIRECTORY:"
@@ -128,20 +160,12 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     fi
   fi
 
-  # It is possible that cache exists but that e.g. sdkman is no longer requested in the setup-runtime source.
-  # Then the cache restore will break if we don't check for the existence of lz4.
-  if command -v lz4 >/dev/null 2>&1; then
-    LZ4_INSTALLED=true
-  else
-    LZ4_INSTALLED=false
-  fi
-
-  export LZ4_INSTALLED
+  register_initialize_callback log_cached_dirs
 
   # Callbacks run in parallel; `wait`'s exit status is the only signal that
   # one failed, and a failed runtime start must abort the task.
   _pids=()
-  for cb in "${ON_INITIALIZE_CALLBACKS[@]}"; do
+  for cb in "${INITIALIZE_CALLBACKS[@]}"; do
     "$cb" &
     _pids+=($!)
   done
@@ -156,25 +180,6 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     exit 1
   fi
   unset _failed
-
-  if [[ "$ENABLE_CACHE" = "true" ]]; then
-    export COREPACK_HOME=$CACHE_DIRECTORY/corepack
-    mkdir -p "$COREPACK_HOME"
-    # The corepack package managers that are instaled during resource get step should be available alongside any
-    # potential installed candidates from the task cache.
-    if [ -d $RUNTIME_DIR/corepack ]; then
-      cp -r $RUNTIME_DIR/corepack/* "$COREPACK_HOME"
-    fi
-
-    export NPM_CONFIG_CACHE=$CACHE_DIRECTORY/npm
-    mkdir -p "$NPM_CONFIG_CACHE"
-
-    export YARN_CACHE_FOLDER=$CACHE_DIRECTORY/yarn
-    mkdir -p "$YARN_CACHE_FOLDER"
-
-    export PNPM_STORE_PATH=$CACHE_DIRECTORY/pnpm
-    mkdir -p "$PNPM_STORE_PATH"
-  fi
 
   if [[ "$PYENV_ENABLED" = "true" ]]; then
     eval "$(pyenv init - bash)"
