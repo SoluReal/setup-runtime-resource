@@ -121,6 +121,12 @@ function run_test() {
     fi
   done
 
+  # The check and repo get also log the cache line, so only assets/in's bootstrap line shows a rebuild.
+  if grep -q "Bootstrapping Debian rootfs" "$log" || ! grep -q "found existing resource cache" "$log"; then
+    echo "$job rebuilt its rootfs on run $RUNS instead of using the resource cache"
+    return 1
+  fi
+
   local output
   output="$(output_from_marker "$log")" || return 1
 
