@@ -57,5 +57,8 @@ Caching invariants:
 
 `build` → `test` (triggered by hand; runs every test and `full`; all of them gate the release) → `publish-major/minor/patch`.
 
+PRs labelled `concourse` get their own pipeline (`ci/pr-pipeline.yml`, rendered by `test/pipeline.sh` and set by
+`set-pr-pipelines`): it builds the `pr-<number>` image and runs `full` against it.
+
 Public repo: only `((var))` references, no literals, no vars file. The private deploy repo supplies the values and
 sets the pipeline that `test/pipeline.sh ci/pipeline.yml` renders.

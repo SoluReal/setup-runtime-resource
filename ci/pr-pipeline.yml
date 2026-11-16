@@ -1,0 +1,96 @@
+# One pipeline per pull request labelled `concourse`, set by ci/pipeline.yml's set-pr-pipelines job after
+# test/pipeline.sh renders it; ((number)) is the PR's instance var.
+resources:
+  # Named `repo` because test/pipeline.sh's test-<name> jobs and task file paths expect that input.
+  - name: repo
+    type: github-pr
+    icon: source-pull
+    check_every: 5m # GitHub webhooks are per repo, so they can't reach one PR's pipeline
+    source:
+      repository: SoluReal/setup-runtime-resource
+      access_token: ((github-apitoken))
+      number: ((number))
+
+  # Its own tag, so a PR never replaces the `dev` image that master's test job runs.
+  - name: setup-runtime-resource-pr
+    type: registry-image
+    icon: docker
+    source:
+      repository: docker.io/solureal/setup-runtime-resource
+      tag: pr-((number))
+      username: ((dockerhub-libs-username))
+      password: ((dockerhub-libs-password))
+
+jobs:
+  - name: build
+    serial: true
+    plan:
+      - get: repo
+        trigger: true
+        params:
+          integration_tool: checkout # merge needs the merge base, which shallow clones lack
+          git_depth: 1
+      - put: set-pending-status
+        resource: repo
+        no_get: true # the status put returns the version it was given; re-cloning it is wasted work
+        params:
+          path: repo
+          status: pending
+          context: build
+      - task: build
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+          params:
+            IMAGE_PLATFORM: linux/arm64
+            OUTPUT_OCI: true
+          caches:
+            - path: cache
+          inputs:
+            - name: repo
+              path: .
+          outputs:
+            - name: image
+          run:
+            path: build
+      - put: setup-runtime-resource-pr
+        params:
+          image: image/image
+      - get: setup-runtime-full
+      # test/pipeline.sh puts test-full's steps here.
+      - in_parallel: full-steps
+    on_success:
+      put: set-build-success-status
+      resource: repo
+      no_get: true
+      params:
+        path: repo
+        status: success
+        context: build
+    on_failure:
+      put: set-failure-status
+      resource: repo
+      no_get: true
+      params:
+        path: repo
+        status: failure
+        context: build
+
+resource_types:
+  - name: setup-runtime-resource
+    type: registry-image
+    privileged: true
+    source:
+      repository: solureal/setup-runtime-resource
+      tag: pr-((number))
+
+  - name: github-pr
+    type: registry-image
+    source:
+      repository: ((registry-url))/dockerhubproxy/github-pr
+      username: ((registry-username))
+      password: ((registry-password))
