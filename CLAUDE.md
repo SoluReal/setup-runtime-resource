@@ -39,8 +39,14 @@ TEST="maven gradle" ./build-and-test.sh
 ## Architecture
 
 Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<name>_install`, wired into
-`assets/in`), `assets/hooks/customize-NN-<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
+`assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
+
+`hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `pyenv`,
+`golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),
+`info_spinner` logs one atomic `▶`/`✔` line per step to the shared `$OUTPUT_FILE` (no `\r` spinners), raw tool output goes
+to a private file shown only on failure or `verbose`, and `$RUNTIME_BASHRC` is merged afterwards in fixed order. Write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside a group stay
+serial: sdkman's shared state is not safe for concurrent `sdk install`.
 
 Caching invariants:
 - Everything is cached **in place**: a tool pointed at `$CACHE_DIRECTORY` by an env var and registered with

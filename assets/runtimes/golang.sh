@@ -35,10 +35,10 @@ if [[ -n "$golang_version" ]]; then
     rm -rf "$GOROOT/test" "$GOROOT/api"
   fi
 
-  echo "export GOROOT=$GOLANG_RUNTIME_DIR" >> $chroot_dir$RUNTIME_HOME/.bashrc
-  echo "export PATH=\$GOROOT/bin:\$PATH" >> $chroot_dir$RUNTIME_HOME/.bashrc
-  echo "export GOPATH=$RUNTIME_HOME/go" >> $chroot_dir$RUNTIME_HOME/.bashrc
-  echo "export PATH=\$GOPATH/bin:\$PATH" >> $chroot_dir$RUNTIME_HOME/.bashrc
+  echo "export GOROOT=$GOLANG_RUNTIME_DIR" >> "$RUNTIME_BASHRC"
+  echo "export PATH=\$GOROOT/bin:\$PATH" >> "$RUNTIME_BASHRC"
+  echo "export GOPATH=$RUNTIME_HOME/go" >> "$RUNTIME_BASHRC"
+  echo "export PATH=\$GOPATH/bin:\$PATH" >> "$RUNTIME_BASHRC"
 
   add_metadata "golang" "$golang_version"
 fi
