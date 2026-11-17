@@ -7,6 +7,6 @@ nodejs:
   yarn:
     version: 4.10.2
 telemetry:
-  disable: true
+  enabled: false
 verbose: true
 dependency_download_retries: 3
