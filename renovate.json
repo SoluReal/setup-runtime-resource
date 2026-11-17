@@ -3,5 +3,14 @@
   "extends": [
     "config:recommended"
   ],
-  "ignorePaths": ["**/example/**", "test/resources/projects/**"]
+  "ignorePaths": ["**/example/**", "test/resources/projects/**"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^assets/.+\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n[A-Z_]+_VERSION=(?<currentValue>\\S+)"
+      ]
+    }
+  ]
 }

@@ -10,7 +10,6 @@ source $ROOT_DIR/common.sh
 source $ROOT_DIR/installers/testcontainers.sh
 source $ROOT_DIR/installers/sdkman.sh
 source $ROOT_DIR/installers/node.sh
-source $ROOT_DIR/installers/pyenv.sh
 source $ROOT_DIR/installers/golang.sh
 
 dest=$1
@@ -41,7 +40,7 @@ export maven_wrapper=$(jq -r '(.source.maven.wrapper // "false")' <<< "$payload"
 export gradle_version=$(jq -r '(.source.gradle.version // "")' <<< "$payload")
 export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payload")
 
-export pyenv_enabled=$(jq -r '(.source.pyenv.enabled // "false")' <<< "$payload")
+export python_version=$(jq -r '(.source.python.version // "")' <<< "$payload")
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
 export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
 export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
@@ -59,7 +58,6 @@ dependencies="
   $extra_dependencies
   $(sdkman_get_dependencies)
   $(node_get_dependencies)
-  $(pyenv_get_dependencies)
   $(golang_get_dependencies)
   $(testcontainers_get_dependencies)
 "
@@ -215,7 +213,7 @@ done
 
 cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
 
-# The build ran as root. The task user needs to write to both: sdk/nvm/pyenv
+# The build ran as root. The task user needs to write to both: sdk/nvm/uv
 # install into $RUNTIME_DIR at task time, gradle/maven write under $HOME.
 chown -R "$RUNTIME_UID:$RUNTIME_UID" "$dest/rootfs$RUNTIME_HOME" "$dest/rootfs$RUNTIME_DIR"
 
