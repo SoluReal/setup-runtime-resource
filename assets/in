@@ -22,10 +22,6 @@ hash=$(hash_source "$payload")
 extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payload")
 hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
-if jq -e '.source.telemetry | type == "object" and has("disable")' <<< "$payload" > /dev/null; then
-  error "source.telemetry.disable was replaced by source.telemetry.enabled (default true); use telemetry.enabled: false to disable telemetry."
-  exit 1
-fi
 # jq's // would turn an explicit false into the default.
 telemetry_enabled=$(jq -r '(.source.telemetry.enabled | if . == null then "true" else tostring end)' <<< "$payload")
 
