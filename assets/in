@@ -22,7 +22,8 @@ hash=$(hash_source "$payload")
 extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payload")
 hook=$(jq -r '(.source.hook // "")' <<< "$payload")
 verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
-telemetry=$(jq -r '(.source.telemetry.disable // "")' <<< "$payload")
+# jq's // would turn an explicit false into the default.
+telemetry_enabled=$(jq -r '(.source.telemetry.enabled | if . == null then "true" else tostring end)' <<< "$payload")
 
 export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
 export testcontainers_rootless=$(jq -r '(.source.testcontainers.rootless // "false")' <<< "$payload")
@@ -48,7 +49,8 @@ export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload"
 export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
 
 export VERBOSE=$verbose
-export DISABLE_TELEMETRY=$telemetry
+export DISABLE_TELEMETRY=false
+[[ "$telemetry_enabled" = "false" ]] && DISABLE_TELEMETRY=true
 export DEBUG=$(jq -r '(.source.debug // "false")' <<< "$payload")
 
 # Hooks and dependencies like curl or git need the CA bundle even when no runtime pulls it in.
