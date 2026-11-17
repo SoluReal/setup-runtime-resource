@@ -1,12 +1,4 @@
 services:
-  apt-cacher:
-    container_name: apt-cacher
-    build:
-      context: util/apt-cacher
-    ports:
-      - "3142:3142"
-    restart: unless-stopped
-
   registry:
     image: registry:3
     ports:
@@ -62,7 +54,7 @@ services:
     restart: unless-stopped
     command: worker
     privileged: true
-    depends_on: [ web, git-server, apt-cacher ]
+    depends_on: [ web, git-server ]
     volumes: [ "./keys/worker:/concourse-keys" ]
     links: [ web ]
     stop_signal: SIGUSR2
@@ -74,7 +66,6 @@ services:
       # full|fuse-only|ignore: privileges `privileged: true` tasks get on the local worker.
       CONCOURSE_CONTAINERD_PRIVILEGED_MODE: "${CONCOURSE_CONTAINERD_PRIVILEGED_MODE:-full}"
     extra_hosts:
-      - "apt-cacher:host-gateway"
       - "git-server:host-gateway"
     logging:
       driver: "json-file"

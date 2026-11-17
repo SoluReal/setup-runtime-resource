@@ -49,11 +49,11 @@ do
 done
 
 # Same generator as the deploy of ci/pipeline.yml; the flags cover how this stack differs from CI's cluster:
-# no unprivileged user namespaces (so dockerd, not rootless podman) and an apt-cacher.
+# no unprivileged user namespaces, so dockerd instead of rootless podman.
 command -v yq > /dev/null || { echo "test/pipeline.sh needs mikefarah yq v4 (brew install yq)" >&2; exit 1; }
 pipeline_file="$(mktemp)"
 trap 'rm -f "$pipeline_file"' EXIT
-test/pipeline.sh test/pipeline.yml --no-rootless --debian-proxy http://apt-cacher:3142 > "$pipeline_file"
+test/pipeline.sh test/pipeline.yml --no-rootless > "$pipeline_file"
 
 fly -t test set-pipeline -c "$pipeline_file" -p "$PIPELINE" -n \
   --var "setup-runtime-resource-tag=$IMAGE_TAG" \

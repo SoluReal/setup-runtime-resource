@@ -1,5 +1,5 @@
 hook: |
-  curl -fSL https://github.com/hairyhenderson/gomplate/releases/download/v4.3.3/gomplate_linux-$(dpkg --print-architecture) -o /usr/local/bin/gomplate
+  curl -fSL https://github.com/hairyhenderson/gomplate/releases/download/v4.3.3/gomplate_linux-$(uname -m | sed "s/x86_64/amd64/;s/aarch64/arm64/") -o /usr/local/bin/gomplate
   chmod +x /usr/local/bin/gomplate
 dependencies:
   - wget

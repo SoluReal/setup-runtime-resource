@@ -5,7 +5,7 @@ set -euo pipefail
 # every test's test.sh against the deep merge of all source.yml files. Needs mikefarah yq v4.
 
 usage() {
-  echo "usage: $0 <base pipeline> [--no-rootless] [--debian-proxy URL]" >&2
+  echo "usage: $0 <base pipeline> [--no-rootless]" >&2
   exit 2
 }
 
@@ -15,11 +15,9 @@ export TASK_FILE=repo/test/resources/task.yml
 
 base=""
 rootless=true
-debian_proxy=""
 while (($#)); do
   case "$1" in
     --no-rootless) rootless=false ;;
-    --debian-proxy) debian_proxy="${2:?--debian-proxy needs a URL}"; shift ;;
     -*) usage ;;
     *) [[ -z "$base" ]] || usage; base="$1" ;;
   esac
@@ -58,9 +56,8 @@ for test in "${tests[@]}"; do source_entries "$test"; done | awk -F'\t' '
   END { exit failed }'
 
 apply_local_flags() {
-  ROOTLESS="$rootless" PROXY="$debian_proxy" yq '(. // {})
-    | with(select(strenv(ROOTLESS) == "false" and .testcontainers.rootless != null); .testcontainers.rootless = false)
-    | with(select(strenv(PROXY) != ""); .debian_proxy = strenv(PROXY))' "$1"
+  ROOTLESS="$rootless" yq '(. // {})
+    | with(select(strenv(ROOTLESS) == "false" and .testcontainers.rootless != null); .testcontainers.rootless = false)' "$1"
 }
 
 for test in "${tests[@]}"; do

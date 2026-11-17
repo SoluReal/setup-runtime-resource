@@ -2,8 +2,8 @@ go version | assert_contains "go version go1.22.1"
 
 # minimal_image strips Go's own test suite.
 ls "$GOROOT/test" 2>&1 | assert_contains "No such file"
-# minimal_image also drops apt, which can't run without the dpkg database the cleanup deletes.
-ls /usr/bin | assert_not_contains "apt-get"
+# The rootfs build removes the package manager.
+ls /usr/bin | assert_not_contains "apk"
 
 cd "$(mktemp -d)"
 cat > main.go <<'GO'
