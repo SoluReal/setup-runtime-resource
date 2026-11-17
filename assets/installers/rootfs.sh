@@ -41,9 +41,16 @@ SOURCES
 function rootfs_install_dependencies() {
   # log_on_error runs these with errexit off, so each step has to fail the function itself.
   rootfs_exec apt-get update || return
-  # apt-fast joins two apt directories without a slash, so name the archives itself.
+  # The base is as old as the image, so bring its packages up to date (security fixes) first.
+  rootfs_apt_fast upgrade || return
   # shellcheck disable=SC2086
-  APTCACHE=/var/cache/apt/archives DLDIR=/var/cache/apt/archives/apt-fast rootfs_exec apt-fast -y install --no-install-recommends -o Dpkg::Options::=--force-unsafe-io $1
+  rootfs_apt_fast install --no-install-recommends $1
+}
+
+# apt-fast joins two apt directories without a slash, so name the archives itself.
+function rootfs_apt_fast() {
+  APTCACHE=/var/cache/apt/archives DLDIR=/var/cache/apt/archives/apt-fast \
+    rootfs_exec apt-fast -y -o Dpkg::Options::=--force-unsafe-io "$@"
 }
 
 # The base keeps apt, aria2 and their libraries marked auto-installed, so purging apt (which
