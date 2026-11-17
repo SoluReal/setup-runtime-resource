@@ -1,7 +1,9 @@
 # setup-runtime-resource
 
-Concourse resource (`solureal/setup-runtime-resource`) that builds a Debian trixie rootfs at pipeline time
-with `mmdebstrap` + `fakechroot`, cached by Concourse. `check` = SHA-256 of `source`; `in` builds; `out` no-op.
+Concourse resource (`solureal/setup-runtime-resource`) that builds a Debian trixie rootfs at pipeline time, cached
+by Concourse. The image bakes an essential base (`mmdebstrap`, with apt + apt-fast; `base/`) as `base.tar.zst`; `in`
+extracts it, installs `dependencies` with apt-fast under `fakechroot`, then purges apt. `check` = SHA-256 of `source`;
+`in` builds; `out` no-op.
 
 ## Tests
 
@@ -40,6 +42,10 @@ TEST="maven gradle" ./build-and-test.sh
 Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<name>_install`, wired into
 `assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
+
+`in` runs `hooks/customize-*.sh` itself, in order, once the installer is purged (the cleanup hook deletes the dpkg
+database). The base marks everything beyond the essential set auto-installed, which is what lets `purge --autoremove apt`
+restore the plain essential rootfs; `in` also rewrites fakechroot's absolute symlinks at the end.
 
 `hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
 `golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),

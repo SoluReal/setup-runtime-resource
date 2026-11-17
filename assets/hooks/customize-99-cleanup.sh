@@ -48,10 +48,7 @@ rm -rf $chroot_dir/etc/dpkg/*
 rm -rf $chroot_dir/usr/share/dpkg/*
 rm -rf $chroot_dir/usr/libexec/dpkg
 
-# Leave apt.conf.d/00mmdebstrap and 99debconf: mmdebstrap unlinks them itself after the hooks,
-# and removing them here makes it warn.
-find $chroot_dir/etc/apt -mindepth 1 -maxdepth 1 ! -name apt.conf.d -exec rm -rf {} +
-find $chroot_dir/etc/apt/apt.conf.d -mindepth 1 ! -name 00mmdebstrap ! -name 99debconf -exec rm -rf {} +
+rm -rf $chroot_dir/etc/apt
 
 rm -rf $chroot_dir/usr/share/perl*
 rm -rf $chroot_dir/usr/lib/*-linux-gnu/perl*
