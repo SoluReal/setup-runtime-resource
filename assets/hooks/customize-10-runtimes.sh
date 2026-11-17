@@ -15,7 +15,7 @@ function start_group() {
   shift
   local runtime_requested_in_source=false runtime
   for runtime in "$@"; do
-    if runtime_wanted "$runtime"; then runtime_requested_in_source=true; fi
+    if runtime_is_requested_in_source "$runtime"; then runtime_requested_in_source=true; fi
   done
   [[ "$runtime_requested_in_source" = "true" ]] || return 0
   (

@@ -34,7 +34,7 @@ function sdkman_install() {
   cp "$ROOT_DIR/includes/maven.sh" "$chroot_dir/$RUNTIME_DIR/plugins/maven.sh"
 }
 
-if runtime_wanted sdkman; then
+if runtime_is_requested_in_source sdkman; then
   sdkman_install &
   info_spinner "Installing sdkman" "Sdkman installed" $!
 fi

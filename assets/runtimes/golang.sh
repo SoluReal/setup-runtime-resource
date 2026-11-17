@@ -5,7 +5,7 @@ set -eo pipefail
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 
-if runtime_wanted golang; then
+if runtime_is_requested_in_source golang; then
   export GOROOT="$chroot_dir$GOLANG_RUNTIME_DIR"
   mkdir -p "$GOROOT"
 

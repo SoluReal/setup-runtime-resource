@@ -29,7 +29,7 @@ function info_to_output_file() {
 }
 
 # Single source of truth for "is this runtime in source", shared by the runtime scripts and the group hook.
-function runtime_wanted() {
+function runtime_is_requested_in_source() {
   case "$1" in
     sdkman) [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]] ;;
     nvm) [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]] ;;
