@@ -101,7 +101,9 @@ fi
 
 export OUTPUT_FILE=/tmp/info_log
 touch $OUTPUT_FILE
-tail -f "$OUTPUT_FILE" &
+# --pid makes tail drain the file and exit once this script ends; killing it right after mmdebstrap
+# dropped the last lines (cleanup) whenever the large verbose group blocks left it behind.
+tail -f -s 0.2 --pid=$$ "$OUTPUT_FILE" 3>&- &
 INFO_LOGGER_PID=$!
 # A surviving tail holds the task's stderr open, so Concourse would wait on a failed build forever.
 trap 'kill $INFO_LOGGER_PID 2>/dev/null || true' EXIT
@@ -148,7 +150,6 @@ if [ $status -ne 0 ]; then
 fi
 rm -f "$mmdebstrap_log"
 
-kill $INFO_LOGGER_PID
 trap - EXIT
 
 # /tmp is excluded from the tar; recreate it writable for the non-root task user.

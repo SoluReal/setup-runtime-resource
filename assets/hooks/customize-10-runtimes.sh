@@ -9,11 +9,15 @@ source "$ROOT_DIR/common.sh"
 # Groups log progress events live to $OUTPUT_FILE; raw tool output goes to a per-group file.
 work_dir=$(mktemp -d)
 declare -A group_of started_at
-durations=0
 
 function start_group() {
   local name="$1"
   shift
+  local runtime_requested_in_source=false runtime
+  for runtime in "$@"; do
+    if runtime_is_requested_in_source "$runtime"; then runtime_requested_in_source=true; fi
+  done
+  [[ "$runtime_requested_in_source" = "true" ]] || return 0
   (
     export GROUP_NAME="$name" RUNTIME_BASHRC="$work_dir/$name.bashrc" SETUP_PARALLEL=true
     for runtime in "$@"; do
@@ -27,6 +31,7 @@ function start_group() {
 # One contiguous block per group, so concurrent groups' output never mixes.
 function print_group_output() {
   local name="$1"
+  [[ -s "$work_dir/$name.out" ]] || return 0
   { printf "%b[setup-runtime] ── %s output ──%b\n" "$Green" "$name" "$Color_Off"; cat "$work_dir/$name.out"; } \
     > "$work_dir/$name.block"
   cat "$work_dir/$name.block" >> "$OUTPUT_FILE"
@@ -45,7 +50,6 @@ while (( ${#group_of[@]} > 0 )); do
   name="${group_of[$finished]}"
   unset "group_of[$finished]"
   elapsed=$((SECONDS - started_at[$name]))
-  durations=$((durations + elapsed))
   GROUP_NAME="$name"
   if [[ $status -eq 0 ]]; then
     group_event "✔" "$Green" "done" "$(format_elapsed $elapsed)"
@@ -62,7 +66,7 @@ done
 
 [[ $failed -eq 0 ]] || exit 1
 
-info_to_output_file "runtimes ready in $(format_elapsed $((SECONDS - all_started))) (sequential would be $(format_elapsed $durations))"
+(( ${#started_at[@]} == 0 )) || info_to_output_file "runtimes ready in $(format_elapsed $((SECONDS - all_started)))"
 
 # Fixed order, as the hooks used to append them, so PATH precedence is unchanged.
 for name in sdkman node pyenv golang; do

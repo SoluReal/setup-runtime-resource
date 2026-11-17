@@ -5,7 +5,7 @@ set -eo pipefail
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 
-if [ -n "$nodejs_version" ]; then
+if runtime_is_requested_in_source node; then
   if [ "$nodejs_version" = "lts" ]; then
     candidate="--lts"
   else

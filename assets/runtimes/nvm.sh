@@ -5,7 +5,7 @@ set -eo pipefail
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 
-if [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]]; then
+if runtime_is_requested_in_source nvm; then
   export NVM_DIR="$chroot_dir$NVM_RUNTIME_DIR"
   mkdir -p "$NVM_DIR"
 

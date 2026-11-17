@@ -202,8 +202,12 @@ wait
 
 declare -a failed=()
 for name in "${selected[@]}"; do
-  cat "$WORK_DIR/$name.out"
-  [[ "$(cat "$WORK_DIR/$name.status" 2>/dev/null)" == PASS ]] || failed+=("$name")
+  if [[ "$(cat "$WORK_DIR/$name.status" 2>/dev/null)" == PASS ]]; then
+    grep -E '^PASS: ' "$WORK_DIR/$name.out"
+  else
+    cat "$WORK_DIR/$name.out"
+    failed+=("$name")
+  fi
 done
 
 echo
