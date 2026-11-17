@@ -103,8 +103,7 @@ fi
 
 if [[ "$minimal_image" = "true" ]]; then
   add_metadata "minimal-image" "true"
-  # The cleanup hook deleted the dpkg database and apt's config, so apt and dpkg's helpers can't work any more.
-  # Removed after the hook, which mmdebstrap's own apt cleanup precedes; `dpkg --print-architecture` keeps working.
+  # The cleanup hook deleted the dpkg database, so a listed apt and dpkg's helpers can't work any more.
   rm -rf "$dest/rootfs"/usr/bin/apt* "$dest/rootfs"/usr/lib/apt "$dest/rootfs"/usr/lib/*-linux-gnu/libapt-* \
     "$dest/rootfs"/var/lib/apt "$dest/rootfs"/var/cache/apt "$dest/rootfs"/var/log/apt "$dest/rootfs"/etc/apt
   find "$dest/rootfs/usr/bin" -maxdepth 1 -name 'dpkg-*' -delete
