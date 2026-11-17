@@ -54,7 +54,9 @@ Caching invariants:
   If a tool can't be pointed there, it isn't cached.
 - The registry in `bashrc.sh` stays empty; each plugin registers its own keys at source time.
 - sdkman/nvm/pyenv/corepack versions are baked into the rootfs, not cached. Installs a task runs itself
-  redo every build (hence `DOWNLOADS_ON_WARM_RUN` in the `*-rc` tests and `python`).
+  (`.nvmrc`, `.sdkmanrc`, pyenv) extract again every build. Only nvm's archive is cached (`node/nvm`, via an
+  overridden `nvm_cache_dir`): sdkman hardcodes `$SDKMAN_DIR/tmp` and always re-downloads, so java-rc and the
+  python tests keep `DOWNLOADS_ON_WARM_RUN`.
 - `create_m2_dir` writes settings.xml to both `~/.m2` and `$MAVEN_USER_HOME`; keep both.
 - pnpm's store var is `npm_config_store_dir` (`PNPM_STORE_PATH` does nothing).
 - The `hook` runs before `bashrc.sh` is appended to `.bashrc`, so no plugin (or cache) is active in it.

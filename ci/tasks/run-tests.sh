@@ -67,13 +67,16 @@ function output_from_marker() {
 
 # Prints "<steps>|<cache_keys>|<downloads reason>" from a test's test.env (the union of all of them for full).
 function read_test_env() {
-  local name="$1" test steps="" cache_keys="" downloads_reason=""
+  local name="$1" test steps="" cache_keys="" downloads_reason="" tests_that_always_download=""
   if [[ "$name" == full ]]; then
     for test in $(available_tests); do
       steps+=" $test"
       cache_keys+=" $(source_test_env "$test"; echo "$RESTORES_CACHE_DIRECTORIES")"
+      if [[ -n "$(source_test_env "$test"; echo "$DOWNLOADS_ON_WARM_RUN")" ]]; then
+        tests_that_always_download+=" $test"
+      fi
     done
-    downloads_reason="several tests download on every run by design; the per-test jobs are where a missed cache shows up"
+    [[ -z "$tests_that_always_download" ]] || downloads_reason="these tests download on every run by design:$tests_that_always_download; their own jobs show a missed cache"
   else
     steps="$name"
     source_test_env "$name"
@@ -89,6 +92,11 @@ function source_test_env() {
   # shellcheck source=/dev/null
   [[ -f "$TESTS_DIR/$1/test.env" ]] && source "$TESTS_DIR/$1/test.env"
   return 0
+}
+
+# nvm prints this line even when its cached archive is used ("Local cache found" follows).
+function filter_downloads() {
+  grep -E "Download|Pulling" | grep -v "Downloading and installing node"
 }
 
 function run_test() {
@@ -132,9 +140,9 @@ function run_test() {
 
   if [[ -n "$downloads_reason" ]]; then
     echo "$job: download check skipped: $downloads_reason"
-  elif grep -Eq "Download|Pulling" <<< "$output"; then
+  elif filter_downloads <<< "$output" | grep -q .; then
     echo "$job downloaded on run $RUNS, so its caches were not reused:"
-    grep -E "Download|Pulling" <<< "$output" | head -5
+    filter_downloads <<< "$output" | head -5
     return 1
   fi
 

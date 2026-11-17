@@ -377,6 +377,7 @@ caches:
 | Maven | `$CACHE_DIRECTORY/maven` (`MAVEN_USER_HOME`): the local repository and the distributions `mvnw` downloads |
 | Gradle | `$CACHE_DIRECTORY/gradle` (`GRADLE_USER_HOME`): dependencies, wrapper distributions and the build cache |
 | npm, yarn, pnpm | `$CACHE_DIRECTORY/npm`, `$CACHE_DIRECTORY/yarn`, `$CACHE_DIRECTORY/pnpm` |
+| nvm | `$CACHE_DIRECTORY/nvm-downloads`: the Node.js archives `nvm install` fetches, so a `.nvmrc` version is not downloaded again |
 | Docker images | `$CACHE_DIRECTORY/docker`: the images your task ran, with testcontainers enabled |
 
 The first build on a worker downloads everything; later builds reuse what is already there.
