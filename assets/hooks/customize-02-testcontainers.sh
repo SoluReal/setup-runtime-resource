@@ -14,9 +14,12 @@ if [[ "$testcontainers_enabled" = "true" ]]; then
     add_metadata "testcontainers-rootless" "true"
     add_task_env_var "TESTCONTAINERS_ROOTLESS=true"
 
-    # podman-docker's `docker` shim prints an "Emulate Docker CLI" notice on every call;
-    # this file is the documented way to silence it.
+    # Wolfi has no podman-docker, so `docker` is a link to podman. Podman prints an
+    # "Emulate Docker CLI" notice for it unless /etc/containers/nodocker exists.
+    ln -sf podman "$chroot_dir/usr/bin/docker"
     mkdir -p "$chroot_dir/etc/containers"
     touch "$chroot_dir/etc/containers/nodocker"
+    # pasta is not packaged in Wolfi.
+    printf '[network]\ndefault_rootless_network_cmd = "slirp4netns"\n' > "$chroot_dir/etc/containers/containers.conf"
   fi
 fi

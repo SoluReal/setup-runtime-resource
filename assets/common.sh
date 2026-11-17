@@ -135,7 +135,7 @@ chroot_exec() {
     local rootfs="${1}"
     shift
     local cmd="$*"
-    fakechroot chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
+    chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
 }
 
 function add_task_env_var() {

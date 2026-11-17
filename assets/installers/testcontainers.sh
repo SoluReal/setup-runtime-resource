@@ -1,15 +1,15 @@
 #!/bin/bash
 
 function testcontainers_get_dependencies() {
-  local shared="curl gawk iproute2 jq passwd"
+  local shared="curl gawk iproute2 jq shadow"
 
   if [ "$testcontainers_enabled" = "true" ]; then
     if [ "$testcontainers_rootless" = "true" ]; then
-      # podman-docker shims `docker`; fuse-overlayfs/passt/uidmap enable rootless (passt provides
-      # pasta, the rootless network backend).
-      echo "$shared podman podman-docker fuse-overlayfs passt uidmap nftables"
+      # No podman-docker in Wolfi: the hook links `docker` to podman. slirp4netns is the rootless
+      # network backend, as passt is not packaged.
+      echo "$shared podman fuse-overlayfs slirp4netns just-newuidmap-newgidmap nftables"
     else
-      echo "$shared docker-ce docker-ce-cli containerd.io docker-buildx-plugin"
+      echo "$shared mount dockerd docker-cli docker-cli-buildx containerd"
     fi
   else
     echo ""

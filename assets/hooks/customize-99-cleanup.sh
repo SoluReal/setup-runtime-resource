@@ -39,22 +39,6 @@ find $chroot_dir/root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm
 find $chroot_dir/home -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
 find $chroot_dir/var -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
 
-rm -rf $chroot_dir/var/lib/apt/lists/*
-rm -rf $chroot_dir/var/cache/apt/archives/*
 rm -rf $chroot_dir/tmp/*
-
-rm -rf $chroot_dir/var/lib/dpkg/*
-rm -rf $chroot_dir/etc/dpkg/*
-rm -rf $chroot_dir/usr/share/dpkg/*
-rm -rf $chroot_dir/usr/libexec/dpkg
-
-rm -rf $chroot_dir/etc/apt
-
-rm -rf $chroot_dir/usr/share/perl*
-rm -rf $chroot_dir/usr/lib/*-linux-gnu/perl*
-rm -rf $chroot_dir/usr/bin/perl*
-rm -rf $chroot_dir/usr/bin/debconf*
-# shasum is a perl script, so it is orphaned once perl is removed.
-rm -rf $chroot_dir/usr/bin/shasum
 
 info_to_output_file "Cleanup finished"

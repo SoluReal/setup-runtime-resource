@@ -4,7 +4,7 @@ A [Concourse](https://github.com/concourse/concourse) resource to setup a runtim
 resource is inspired by the setup github actions like [actions/setup-java](https://github.com/actions/setup-java)
 and [actions/setup-node](https://github.com/actions/setup-node).
 
-It leverages `mmdebstrap` to create a lightweight Debian rootfs with the tools you need without
+It builds a lightweight [Wolfi](https://github.com/wolfi-dev) (glibc, apk) rootfs with the tools you need without
 requiring root. Due to concourse resource caching, the rootfs is only created once and reused for subsequent tasks.
 
 Previously teams created their own images, pushed them to a registry and used them in their pipelines. This resource
@@ -68,7 +68,7 @@ The resource `source` configuration supports the following options:
 
 | Option                        | Description                                                                                                               | Default |
 |-------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------|
-| `dependencies`                | A list of Debian packages to install. `ca-certificates` is always installed.                                              | `[]`    |
+| `dependencies`                | A list of Wolfi packages to install (`apk search` names, e.g. `build-base`, `libstdc++`).                                 | `[]`    |
 | `hook`                        | A bash script to run inside the rootfs during creation.                                                                   | `""`    |
 | `verbose`                     | Enable verbose logging during rootfs creation.                                                                            | `false` |
 | `debug`                       | Enable debug mode, providing info like cache size at shutdown.                                                            | `false` |
@@ -104,8 +104,10 @@ The one exception is `testcontainers.enabled: true` with `testcontainers.rootles
 that combination still runs the task as `root`. Prefer
 [rootless testcontainers](#rootless-testcontainers) instead.
 
-The rootfs has no working package manager: the dpkg database is removed during the build, so neither the `hook` nor
-a task can `apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
+The rootfs has no package manager: `apk` is removed during the build (after `dependencies` are installed), so neither
+the `hook` nor a task can install packages. List Wolfi packages in `dependencies` instead. Wolfi is rolling, so
+packages are current at build time and their versions are not pinned. The rootfs ships busybox plus GNU coreutils,
+tar, grep, sed, findutils and gzip; add anything else (`gawk`, `wget`, ...) to `dependencies`.
 
 ## Minimal image
 
@@ -118,7 +120,6 @@ run code, but is not safe to remove unconditionally for every user:
   used by `go build`, `go test`, or `go vet` on your code.
 - Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
   `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
-- apt and dpkg's helper tools (`apt-get`, `dpkg-*`), which can't run anyway without the dpkg database.
 
 This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
 actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
@@ -127,8 +128,7 @@ explicitly if you want the smaller image.
 
 ## Retries
 
-By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, uv, Go, and the
-Docker apt key) - a transient network error during rootfs creation fails the resource straight away. Set
+By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, uv and Go) - a transient network error during rootfs creation fails the resource straight away. Set
 `dependency_download_retries` to have it retry those downloads:
 
 ```yaml
@@ -201,7 +201,7 @@ jobs:
 ```
 
 Numbering starts at `1` and must be contiguous; the first missing `DOCKER_LOGIN_<n>_REGISTRY`
-stops the loop. Logins run for both dockerd and rootless podman (via the `podman-docker` shim),
+stops the loop. Logins run for both dockerd and rootless podman (via a `docker` link to podman),
 and complete before your task's own script starts executing. If no `DOCKER_LOGIN_*` params are
 set, this is a no-op.
 
@@ -422,7 +422,7 @@ time your job runs when using e.g. [testcontainers](https://testcontainers.com/)
 ## Rootless testcontainers
 
 With `testcontainers.rootless: true`, [podman](https://podman.io/) is used instead of `dockerd`, running as a real
-non-root user (`runtime`) instead of root. A `docker` command is still provided (via `podman-docker`) so existing
+non-root user (`runtime`) instead of root. A `docker` command is still provided (a link to podman) so existing
 `docker build`/`docker run` calls and Testcontainers itself keep working unmodified.
 
 You still need `privileged: true` on the task. However, you can run your concourse worker with

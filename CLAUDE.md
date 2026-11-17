@@ -1,14 +1,13 @@
 # setup-runtime-resource
 
-Concourse resource (`solureal/setup-runtime-resource`) that builds a Debian trixie rootfs at pipeline time, cached
-by Concourse. The image bakes an essential base (`mmdebstrap`, with apt + apt-fast; `base/`) as `base.tar.zst`; `in`
-extracts it, installs `dependencies` with apt-fast under `fakechroot`, then purges apt. `check` = SHA-256 of `source`;
+Concourse resource (`solureal/setup-runtime-resource`) that builds a Wolfi (glibc, apk) rootfs at pipeline time, cached
+by Concourse. The image is Wolfi too and bakes a base rootfs (`apk add --root`; see the Dockerfile) as `base.tar.zst`;
+`in` extracts it, upgrades and installs `dependencies` with the host's `apk --root`, then deletes apk. `check` = SHA-256 of `source`;
 `in` builds; `out` no-op.
 
 ## Tests
 
-E2E only, against the local Concourse stack in `docker-compose.yml` (web :8080, registry :5000, git-server,
-apt-cacher):
+E2E only, against the local Concourse stack in `docker-compose.yml` (web :8080, registry :5000, git-server):
 
 ```bash
 ./build-and-test.sh                  # all
@@ -30,8 +29,8 @@ TEST="maven gradle" ./build-and-test.sh
   `Download`/`Pulling` after the marker unless `test.env` sets `DOWNLOADS_ON_WARM_RUN="<why>"`, and one
   `[cache] restore <key> from=local <unit>=N` per key in `test.env`'s `RESTORES_CACHE_DIRECTORIES`. `full` checks the
   union of all keys and skips the download check.
-- Locally `test/pipeline.sh --no-rootless` sets `rootless: false` (no user namespaces, so dockerd) and
-  `--debian-proxy` adds the apt-cacher; `testcontainers/test.sh` runs its rootless-only checks when
+- Locally `test/pipeline.sh --no-rootless` sets `rootless: false` (no user namespaces, so dockerd);
+  `testcontainers/test.sh` runs its rootless-only checks when
   `TESTCONTAINERS_ROOTLESS=true`.
 - Always assert a positive event (a `RESTORES_CACHE_DIRECTORIES` key such as `gradle/modules-2`), never an absence;
   silence passes for a run that did nothing.
@@ -43,9 +42,13 @@ Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<n
 `assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
 
-`in` runs `hooks/customize-*.sh` itself, in order, once the installer is purged (the cleanup hook deletes the dpkg
-database). The base marks everything beyond the essential set auto-installed, which is what lets `purge --autoremove apt`
-restore the plain essential rootfs; `in` also rewrites fakechroot's absolute symlinks at the end.
+`in` runs apk from the resource host (no fakechroot: it is unmaintained; tasks have CAP_SYS_CHROOT and CAP_MKNOD but no
+user namespaces) and the `hook` in a plain `chroot`. A chroot has no /dev or /proc and can't mount them, so `in` mknods
+a few /dev nodes for the build and removes them at the end. The runtime installers run on the host against the rootfs
+path, so they need neither. `hooks/customize-*.sh` run once apk is deleted; `in` rewrites absolute symlinks at the end.
+The resource image must be Wolfi, since runtime installers run rootfs binaries on the host (glibc, libstdc++).
+Package names in `installers/*.sh` are Wolfi's (check with `apk search -x`); Wolfi has no
+`passt` or `podman-docker`, so rootless testcontainers use slirp4netns and a `docker` link to podman.
 
 `hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
 `golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),

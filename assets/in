@@ -43,7 +43,6 @@ export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payloa
 
 export python_version=$(jq -r '(.source.python.version // "")' <<< "$payload")
 export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
-export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
 export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
 
 export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
@@ -53,9 +52,7 @@ export DISABLE_TELEMETRY=false
 [[ "$telemetry_enabled" = "false" ]] && DISABLE_TELEMETRY=true
 export DEBUG=$(jq -r '(.source.debug // "false")' <<< "$payload")
 
-# Hooks and dependencies like curl or git need the CA bundle even when no runtime pulls it in.
 dependencies="
-  ca-certificates
   $extra_dependencies
   $(sdkman_get_dependencies)
   $(node_get_dependencies)
@@ -64,7 +61,6 @@ dependencies="
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
-DEBIAN_VERSION=trixie
 rootfs="$dest/rootfs"
 
 export OUTPUT_FILE=/tmp/info_log
@@ -73,24 +69,32 @@ touch $OUTPUT_FILE
 # dropped the last lines (cleanup) whenever the large verbose group blocks left it behind.
 tail -f -s 0.2 --pid=$$ "$OUTPUT_FILE" 3>&- &
 INFO_LOGGER_PID=$!
-# A surviving tail holds the task's stderr open, so Concourse would wait on a failed build forever.
-trap 'kill $INFO_LOGGER_PID 2>/dev/null || true' EXIT
-
-if [[ -n "${debian_proxy:-}" ]]; then
-  info "Using debian proxy: $debian_proxy"
-fi
+# A surviving tail or runtime installer holds the task's stderr open, so Concourse would wait on a failed build forever.
+RUNTIMES_PID=""
+trap 'kill $INFO_LOGGER_PID 2>/dev/null || true; [[ -z "$RUNTIMES_PID" ]] || kill -- -$RUNTIMES_PID 2>/dev/null || true' EXIT
 
 info "Extracting the base rootfs and installing dependencies (this can take some time)..."
 rootfs_extract_base
-rootfs_configure_apt
-log_on_error rootfs_install_dependencies "$dependencies"
-log_on_error rootfs_remove_installer
 
 mkdir -p "$rootfs$RUNTIME_DIR/plugins"
 
-# Run after the installer is gone: the cleanup hook deletes the dpkg database the removal needs.
+# The runtime installers run on the host and don't need the dependencies, so they overlap with the apk install
+# (their own process group, so the trap can stop them).
+set -m
+log_on_error bash "$ROOT_DIR/hooks/customize-10-runtimes.sh" "$rootfs" &
+RUNTIMES_PID=$!
+set +m
+
+log_on_error rootfs_install_dependencies "$dependencies"
+log_on_error rootfs_remove_installer
+
 for customize_hook in "$ROOT_DIR"/hooks/customize-*.sh; do
-  log_on_error bash "$customize_hook" "$rootfs"
+  if [[ "$customize_hook" == *customize-10-runtimes.sh ]]; then
+    wait "$RUNTIMES_PID" || exit $?
+    RUNTIMES_PID=""
+  else
+    log_on_error bash "$customize_hook" "$rootfs"
+  fi
 done
 
 trap - EXIT
@@ -103,12 +107,9 @@ fi
 
 if [[ "$minimal_image" = "true" ]]; then
   add_metadata "minimal-image" "true"
-  # The cleanup hook deleted the dpkg database, so a listed apt and dpkg's helpers can't work any more.
-  rm -rf "$dest/rootfs"/usr/bin/apt* "$dest/rootfs"/usr/lib/apt "$dest/rootfs"/usr/lib/*-linux-gnu/libapt-* \
-    "$dest/rootfs"/var/lib/apt "$dest/rootfs"/var/cache/apt "$dest/rootfs"/var/log/apt "$dest/rootfs"/etc/apt
-  find "$dest/rootfs/usr/bin" -maxdepth 1 -name 'dpkg-*' -delete
 fi
 
+rootfs_remove_dev
 rootfs_fix_symlinks
 
 add_task_env_var "BASH_ENV=$RUNTIME_HOME/.bashrc"

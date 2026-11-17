@@ -5,7 +5,7 @@ set -eo pipefail
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 
-# mmdebstrap runs hooks serially, so this one fans the independent runtime groups out itself.
+# `in` runs hooks serially, so this one fans the independent runtime groups out itself.
 # Groups log progress events live to $OUTPUT_FILE; raw tool output goes to a per-group file.
 work_dir=$(mktemp -d)
 declare -A group_of started_at
@@ -68,6 +68,8 @@ done
 
 (( ${#started_at[@]} == 0 )) || info_to_output_file "runtimes ready in $(format_elapsed $((SECONDS - all_started)))"
 
+# `in` starts this hook before the dependencies are installed, so the home directory may not exist yet.
+mkdir -p "$chroot_dir$RUNTIME_HOME"
 # Fixed order, as the hooks used to append them, so PATH precedence is unchanged.
 for name in sdkman node python golang; do
   if [[ -f "$work_dir/$name.bashrc" ]]; then

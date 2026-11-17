@@ -17,7 +17,7 @@ export TESTCONTAINERS_RYUK_DISABLED="${TESTCONTAINERS_RYUK_DISABLED:-true}"
 start_docker() {
   info "Setting up rootless Testcontainers environment (podman)..."
 
-  # pasta needs /dev/net/tun for published ports. No image ships it and mknod
+  # slirp4netns needs /dev/net/tun for published ports. No image ships it and mknod
   # needs root, so the worker must provide it. Not fatal - podman still runs.
   if [[ ! -e /dev/net/tun ]]; then
     error "/dev/net/tun is missing - rootless container networking (published ports) will not work."

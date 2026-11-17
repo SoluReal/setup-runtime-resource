@@ -1,34 +1,19 @@
-# The essential rootfs plus apt and apt-fast, bootstrapped once at image build so `in` skips it.
-# fakechroot mode is the one that works inside `docker build` (no user namespaces, no mounts).
-FROM debian:trixie-slim AS base
+# The base rootfs, built at image build so `in` only has to add the dependencies.
+FROM cgr.dev/chainguard/wolfi-base AS base
 
-# renovate: datasource=github-tags depName=ilikenwf/apt-fast
-ARG APT_FAST_VERSION=v1.7.6
+RUN apk add --no-cache zstd gnutar
+RUN apk add --root /base --initdb --no-cache \
+      --keys-dir /etc/apk/keys --repositories-file /etc/apk/repositories \
+      wolfi-baselayout busybox bash ca-certificates-bundle glibc \
+      coreutils gnutar grep sed findutils gzip && \
+    mkdir -p /base/etc/apk/keys && cp /etc/apk/repositories /base/etc/apk/ && cp /etc/apk/keys/* /base/etc/apk/keys/ && \
+    rm -rf /base/var/cache/apk /base/dev/* && \
+    tar -C /base -c . | zstd -19 -T0 -o /base.tar.zst
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends mmdebstrap fakechroot fakeroot ca-certificates curl zstd && \
-    curl -fsSL "https://raw.githubusercontent.com/ilikenwf/apt-fast/${APT_FAST_VERSION}/apt-fast" -o /apt-fast && \
-    rm -rf /var/lib/apt/lists/*
+FROM cgr.dev/chainguard/wolfi-base AS resource
 
-COPY base /base
-RUN mmdebstrap --variant=essential --mode=fakechroot \
-      --include=apt,aria2,lockfile-progs,ca-certificates \
-      --aptopt=/base/apt.conf --dpkgopt=/base/dpkg.cfg \
-      --essential-hook='/base/hook.sh essential "$1"' \
-      --customize-hook='/base/hook.sh customize "$1"' \
-      --customize-hook='copy-in /apt-fast /usr/local/sbin' \
-      --customize-hook='copy-in /base/apt-fast.conf /etc' \
-      --customize-hook='copy-in /base/apt.conf /etc/apt/apt.conf.d' \
-      --customize-hook='copy-in /base/dpkg.cfg /etc/dpkg/dpkg.cfg.d' \
-      --skip=output/dev --format=tar trixie - | zstd -19 -T0 -o /base.tar.zst
-
-FROM debian:trixie-slim AS resource
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      jq bash ca-certificates gnupg curl fakechroot fakeroot unzip zip libatomic1 zstd \
-    && \
-    rm -rf /var/lib/apt/lists/*
+# The runtime installers run rootfs binaries on this host, so it needs the same glibc and libstdc++/libatomic.
+RUN apk add --no-cache bash jq curl unzip zip zstd libatomic libstdc++ coreutils gnutar findutils grep sed gzip
 
 COPY assets /opt/resource/
 RUN chmod +x /opt/resource/* /opt/resource/hooks/*
