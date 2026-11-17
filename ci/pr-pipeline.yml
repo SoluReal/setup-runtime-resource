@@ -69,8 +69,8 @@ jobs:
         status: failure
         context: build
 
-  # Separate from build: Concourse won't start a job until every get has a version, and
-  # setup-runtime-full has none until build has pushed the pr-((number)) type image.
+  # Separate from build: the test-<name> jobs' resources have no version until build has pushed
+  # the pr-((number)) type image.
   - name: test
     serial: true
     plan:
@@ -84,9 +84,14 @@ jobs:
         - get: setup-runtime-resource-pr
           passed: [ build ]
           trigger: true
-      - get: setup-runtime-full
-      # test/pipeline.sh puts test-full's steps here.
-      - in_parallel: full-steps
+      # Same check as master's test job: every test-<name> job twice, warm run without downloads.
+      - task: run-tests
+        image: setup-runtime-resource-pr
+        file: repo/ci/tasks/run-tests.yml
+        params:
+          FLY_USERNAME: ((fly-username))
+          FLY_PASSWORD: ((fly-password))
+          PIPELINE: setup-runtime-resource-pr/number:((number))
     on_success:
       put: set-build-success-status
       resource: repo

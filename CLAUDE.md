@@ -21,9 +21,8 @@ TEST="maven gradle" ./build-and-test.sh
 - Adding a test = adding its directory; nothing else. `test/pipeline.sh` (bash + mikefarah yq v4) prints a base pipeline
   (`ci/pipeline.yml`, `test/pipeline.yml`) plus a resource and `test-<name>` job per test, and `test-full`: every
   test's `test.sh` as one `in_parallel` step against one image whose source is the deep merge of all `source.yml`s
-  (lists unioned, different scalars fail naming both tests, so pin ONE version per tool across tests). It also fills
-  the base's `in_parallel: full-steps` marker (the PR job). Steps are `privileged` when their image enables
-  testcontainers. The deploy and `build-and-test.sh` set the rendered pipeline, never the base file.
+  (lists unioned, different scalars fail naming both tests, so pin ONE version per tool across tests). Steps are
+  `privileged` when their image enables testcontainers. The deploy and `build-and-test.sh` set the rendered pipeline, never the base file.
 - `ci/tasks/run-tests.sh` (the `test` job, on the resource image itself) clears each step's task cache, triggers
   each `test-<name>` job twice (`PARALLEL` jobs at once, default 4) and checks the **second** (warm) run: no
   `Download`/`Pulling` after the marker unless `test.env` sets `DOWNLOADS_ON_WARM_RUN="<why>"`, and one
@@ -64,7 +63,7 @@ Caching invariants:
 `build` → `test` (triggered by hand; runs every test and `full`; all of them gate the release) → `publish-major/minor/patch`.
 
 PRs labelled `concourse` get their own pipeline (`ci/pr-pipeline.yml`, rendered by `test/pipeline.sh` and set by
-`set-pr-pipelines`): it builds the `pr-<number>` image and runs `full` against it.
+`set-pr-pipelines`): it builds the `pr-<number>` image and runs the same `run-tests` task as master's `test` job against it.
 
 Public repo: only `((var))` references, no literals, no vars file. The private deploy repo supplies the values and
 sets the pipeline that `test/pipeline.sh ci/pipeline.yml` renders.
