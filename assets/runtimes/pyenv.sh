@@ -5,7 +5,7 @@ set -eo pipefail
 chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 
-if [[ "$pyenv_enabled" = "true" ]]; then
+if runtime_wanted pyenv; then
   export PYENV_ROOT="$chroot_dir$PYENV_RUNTIME_DIR"
   mkdir -p "$PYENV_ROOT"
 

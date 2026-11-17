@@ -28,6 +28,18 @@ function info_to_output_file() {
   printf "$Green[setup-runtime] %s$Color_Off\n" "$1" >> $OUTPUT_FILE
 }
 
+# Single source of truth for "is this runtime in source", shared by the runtime scripts and the group hook.
+function runtime_wanted() {
+  case "$1" in
+    sdkman) [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]] ;;
+    nvm) [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]] ;;
+    node) [[ -n "$nodejs_version" ]] ;;
+    pyenv) [[ "$pyenv_enabled" = "true" ]] ;;
+    golang) [[ -n "$golang_version" ]] ;;
+    *) return 1 ;;
+  esac
+}
+
 # 72 -> 1m12s
 function format_elapsed() {
   local secs=$1

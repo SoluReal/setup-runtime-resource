@@ -95,12 +95,6 @@ function prune_oversized_cache() {
   fi
 }
 
-# Remove legacy lz4 archives and tool dirs that now live in the rootfs.
-function remove_legacy_cache_layout() {
-  rm -rf "$CACHE_DIRECTORY"/gradle/archive.tar.lz4 "$CACHE_DIRECTORY"/maven/archive.tar.lz4 \
-    "$CACHE_DIRECTORY"/sdkman "$CACHE_DIRECTORY"/nvm "$CACHE_DIRECTORY"/pyenv "$CACHE_DIRECTORY"/corepack
-}
-
 function teardown_setup_runtime() {
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     if [[ ! -f /tmp/runtime-teardown-executed ]]; then
@@ -152,7 +146,6 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
 
   if [[ "$ENABLE_CACHE" = "true" ]]; then
     mkdir -p "$CACHE_DIRECTORY"
-    remove_legacy_cache_layout
 
     if [[ "$DEBUG" = "true" ]]; then
       info "Cache size in $CACHE_DIRECTORY:"
