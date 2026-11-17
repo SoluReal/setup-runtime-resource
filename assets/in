@@ -12,6 +12,7 @@ source $ROOT_DIR/installers/sdkman.sh
 source $ROOT_DIR/installers/node.sh
 source $ROOT_DIR/installers/pyenv.sh
 source $ROOT_DIR/installers/golang.sh
+source $ROOT_DIR/installers/rootfs.sh
 
 dest=$1
 
@@ -63,41 +64,8 @@ dependencies="
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
-info "Bootstrapping Debian rootfs with mmdebstrap (this can take some time)..."
-
 DEBIAN_VERSION=trixie
-if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
-  install -m 0755 -d /etc/apt/keyrings
-  curl_retry -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
-
-  tee /etc/apt/sources.list.d/docker.sources <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/debian
-Suites: $DEBIAN_VERSION
-Components: stable
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-fi
-
-# Prefer unshare over mmdebstrap's "auto" euid=0 heuristic, which falls back to root;
-# fakechroot is the fallback when unshare doesn't work.
-mount_probe_dir=$(mktemp -d)
-if unshare --user --map-root-user --mount -- \
-    mount -t tmpfs tmpfs "$mount_probe_dir" 2>/dev/null; then
-  mmdebstrap_mode=unshare
-else
-  mmdebstrap_mode=fakechroot
-fi
-rmdir "$mount_probe_dir"
-
-info "mmdebstrap mode: $mmdebstrap_mode"
-
-args=()
-
-if [[ -n "${dependencies:-}" ]]; then
-  args+=( "--include=$dependencies" )
-fi
+rootfs="$dest/rootfs"
 
 export OUTPUT_FILE=/tmp/info_log
 touch $OUTPUT_FILE
@@ -108,53 +76,23 @@ trap 'kill $INFO_LOGGER_PID 2>/dev/null || true' EXIT
 
 if [[ -n "${debian_proxy:-}" ]]; then
   info "Using debian proxy: $debian_proxy"
-  args+=( "--aptopt=Acquire::http { Proxy \"$debian_proxy\"; }" )
 fi
 
-args+=(
-  --variant=essential \
-  --mode=$mmdebstrap_mode \
-  --aptopt='Acquire::Languages "none"' \
-  --aptopt='Apt::Install-Recommends "false"' \
-  --aptopt='APT::Get::Install-Suggests "false"' \
-  --dpkgopt='path-exclude=/usr/share/man/*' \
-  --dpkgopt='path-exclude=/usr/share/locale/*' \
-  --dpkgopt='path-exclude=/usr/share/doc/*' \
-  --dpkgopt='path-exclude=/usr/share/info/*' \
-  --skip=output/dev \
-  --hook-dir="$ROOT_DIR/hooks" \
-  --format=tar \
-  "$DEBIAN_VERSION" -
-)
+info "Extracting the base rootfs and installing dependencies (this can take some time)..."
+rootfs_extract_base
+rootfs_configure_apt
+log_on_error rootfs_install_dependencies "$dependencies"
+log_on_error rootfs_remove_installer
 
-mkdir -p "$dest/rootfs/"
+mkdir -p "$rootfs$RUNTIME_DIR/plugins"
 
-# Extracting as root keeps ownership as before (directory output would leave mapped subuids in
-# unshare mode). Only stderr is captured: stdout is the tar stream, which log_on_error would swallow.
-mmdebstrap_log=$(mktemp)
-tar_args=( -x -C "$dest/rootfs/" --exclude=./var/cache/apt --exclude=./var/lib/apt/lists --exclude=./tmp )
-set +e
-if [ "$VERBOSE" = "true" ]; then
-  mmdebstrap "${args[@]}" | tar "${tar_args[@]}"
-else
-  mmdebstrap "${args[@]}" 2>"$mmdebstrap_log" | tar "${tar_args[@]}"
-fi
-status=$?
-set -e
-if [ $status -ne 0 ]; then
-  cat "$mmdebstrap_log"
-  error "failed to setup-runtime. You can set verbose: true to enable more verbose logging."
-  exit $status
-fi
-rm -f "$mmdebstrap_log"
+# Run after the installer is gone: the cleanup hook deletes the dpkg database the removal needs.
+for customize_hook in "$ROOT_DIR"/hooks/customize-*.sh; do
+  log_on_error bash "$customize_hook" "$rootfs"
+done
 
 kill $INFO_LOGGER_PID
 trap - EXIT
-
-# /tmp is excluded from the tar; recreate it writable for the non-root task user.
-mkdir -p "$dest/rootfs/tmp"
-chmod 1777 "$dest/rootfs/tmp"
-mkdir -p "$dest/rootfs$RUNTIME_DIR"
 
 if [[ -n "$hook" ]]; then
   info "Running custom hook..."
@@ -170,6 +108,8 @@ if [[ "$minimal_image" = "true" ]]; then
     "$dest/rootfs"/var/lib/apt "$dest/rootfs"/var/cache/apt "$dest/rootfs"/var/log/apt "$dest/rootfs"/etc/apt
   find "$dest/rootfs/usr/bin" -maxdepth 1 -name 'dpkg-*' -delete
 fi
+
+rootfs_fix_symlinks
 
 add_task_env_var "BASH_ENV=$RUNTIME_HOME/.bashrc"
 add_task_env_var "HOME=$RUNTIME_HOME"
