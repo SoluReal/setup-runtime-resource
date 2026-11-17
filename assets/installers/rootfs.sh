@@ -70,6 +70,17 @@ function rootfs_prefetch() {
   curl_retry -sS -L -Z --parallel-max 16 --fail -K "$APK_CACHE/downloads"
 }
 
+# Wolfi ships gcc's static libraries and compilers with debug info (about 200 MB that Debian strips).
+# Only real archives and ELF files: some .a files are linker scripts and some tools are shell scripts.
+function rootfs_strip_toolchain() {
+  [[ -x "$rootfs/usr/bin/strip" ]] || return 0
+  chroot "$rootfs" sh -c '
+    find /usr/lib /usr/libexec/gcc -name "*.a" -type f | while read -r f; do
+      [ "$(head -c 7 "$f")" = "!<arch>" ] && echo "$f"; done | xargs -r strip --strip-debug || exit
+    find /usr/libexec/gcc -type f -perm -u+x | while read -r f; do
+      [ "$(head -c 4 "$f" | tail -c 3)" = "ELF" ] && echo "$f"; done | xargs -r strip --strip-unneeded'
+}
+
 # Nothing can install packages in the final rootfs: the hook and tasks get what `dependencies` lists.
 function rootfs_remove_installer() {
   rm -rf "$rootfs"/etc/apk "$rootfs"/usr/lib/apk "$APK_CACHE"

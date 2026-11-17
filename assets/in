@@ -86,6 +86,7 @@ RUNTIMES_PID=$!
 set +m
 
 log_on_error rootfs_install_dependencies "$dependencies"
+log_on_error rootfs_strip_toolchain
 log_on_error rootfs_remove_installer
 
 for customize_hook in "$ROOT_DIR"/hooks/customize-*.sh; do
