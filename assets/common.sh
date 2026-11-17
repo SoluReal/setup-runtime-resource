@@ -8,9 +8,8 @@ export Green='\033[0;32m'
 export RUNTIME_DIR="/var/runtimes"
 export SDKMAN_RUNTIME_DIR="$RUNTIME_DIR/sdkman"
 export NVM_RUNTIME_DIR="$RUNTIME_DIR/nvm"
-export PYENV_RUNTIME_DIR="$RUNTIME_DIR/pyenv"
 export GOLANG_RUNTIME_DIR="$RUNTIME_DIR/golang"
-export PYTHON_RUNTIME_DIR="$RUNTIME_DIR/python"
+export UV_RUNTIME_DIR="$RUNTIME_DIR/uv"
 export COREPACK_HOME_DIR="$RUNTIME_DIR/corepack"
 export RUNTIME_USER="runtime"
 export RUNTIME_UID=1000
@@ -35,7 +34,7 @@ function runtime_is_requested_in_source() {
     sdkman) [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]] ;;
     nvm) [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]] ;;
     node) [[ -n "$nodejs_version" ]] ;;
-    pyenv) [[ "$pyenv_enabled" = "true" ]] ;;
+    python) [[ -n "$python_version" ]] ;;
     golang) [[ -n "$golang_version" ]] ;;
     *) return 1 ;;
   esac
@@ -51,7 +50,6 @@ function group_color() {
   case "$1" in
     sdkman) printf '\033[0;36m' ;;
     node) printf '\033[0;35m' ;;
-    pyenv) printf '\033[0;33m' ;;
     golang) printf '\033[0;34m' ;;
     python) printf '\033[0;32m' ;;
     *) printf '\033[0;37m' ;;

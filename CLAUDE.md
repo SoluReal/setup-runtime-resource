@@ -41,7 +41,7 @@ Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<n
 `assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
 
-`hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `pyenv`,
+`hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
 `golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),
 `info_spinner` logs one atomic `▶`/`✔` line per step to the shared `$OUTPUT_FILE` (no `\r` spinners), raw tool output goes
 to a private file shown only on failure or `verbose`, and `$RUNTIME_BASHRC` is merged afterwards in fixed order. Write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside a group stay
@@ -52,10 +52,10 @@ Caching invariants:
   `register_cache_dir <key> <dir>`. No archives, copies or symlinks (both were tried and removed).
   If a tool can't be pointed there, it isn't cached.
 - The registry in `bashrc.sh` stays empty; each plugin registers its own keys at source time.
-- sdkman/nvm/pyenv/corepack versions are baked into the rootfs, not cached. Installs a task runs itself
-  (`.nvmrc`, `.sdkmanrc`, pyenv) extract again every build. Only nvm's archive is cached (`node/nvm`, via an
-  overridden `nvm_cache_dir`): sdkman hardcodes `$SDKMAN_DIR/tmp` and always re-downloads, so java-rc and the
-  python tests keep `DOWNLOADS_ON_WARM_RUN`.
+- sdkman/nvm/uv/corepack versions are baked into the rootfs, not cached. Installs a task runs itself
+  (`.nvmrc`, `.sdkmanrc`) extract again every build. Only nvm's archive (`node/nvm`, via an overridden
+  `nvm_cache_dir`) and uv's interpreter archives (`uv/python`) are cached: sdkman hardcodes `$SDKMAN_DIR/tmp`
+  and always re-downloads, so java-rc keeps `DOWNLOADS_ON_WARM_RUN`.
 - `create_m2_dir` writes settings.xml to both `~/.m2` and `$MAVEN_USER_HOME`; keep both.
 - pnpm's store var is `npm_config_store_dir` (`PNPM_STORE_PATH` does nothing).
 - The `hook` runs before `bashrc.sh` is appended to `.bashrc`, so no plugin (or cache) is active in it.

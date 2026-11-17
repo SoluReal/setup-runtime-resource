@@ -173,8 +173,4 @@ if [[ ! -f /tmp/runtime-prep-applied ]]; then
     exit 1
   fi
   unset _failed
-
-  if [[ "$PYENV_ENABLED" = "true" ]]; then
-    eval "$(pyenv init - bash)"
-  fi
 fi

@@ -79,8 +79,7 @@ The resource `source` configuration supports the following options:
 | `maven.wrapper`               | Ensure Maven cache environment variables are set even if `maven.version` is not provided (for use with Maven wrapper).    | `false` |
 | `gradle.version`              | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
 | `gradle.wrapper`              | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
-| `pyenv.enabled`               | Enable pyenv.                                                                                                             | `false` |
-| `python.version`              | The prebuilt CPython to install, e.g. `3.12` (latest patch) or `3.12.16`. No compiler needed.                              | `""`    |
+| `python.version`              | The Python version to install with [uv](#python), e.g. `3.12` (latest patch) or `3.12.2`.                                 | `""`    |
 | `golang.version`              | The Go version to install.                                                                                                | `""`    |
 | `nvm.enabled`                 | Enable NVM.                                                                                                               | `false` |
 | `nodejs.version`              | The Node.js version to install via NVM.                                                                                   | `""`    |
@@ -97,7 +96,7 @@ The resource `source` configuration supports the following options:
 
 Tasks using this resource run as the unprivileged `runtime` user (uid 1000), not as `root`. `HOME` is
 `/home/runtime`, and the runtimes installed under `/var/runtimes` are owned by that user so `sdk install`,
-`nvm install` and pyenv still work at task time. Concourse chowns input, output and cache volumes to the task user
+`nvm install` and `uv python install` still work at task time. Concourse chowns input, output and cache volumes to the task user
 ([concourse/concourse#9593](https://github.com/concourse/concourse/pull/9593), Concourse 8.3.0+), so steps around your
 task keep working unchanged.
 
@@ -128,7 +127,7 @@ explicitly if you want the smaller image.
 
 ## Retries
 
-By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, pyenv, Python, Go, and the
+By default, `setup-runtime-resource` does not retry failed downloads (SDKMAN, NVM, bun, uv, Go, and the
 Docker apt key) - a transient network error during rootfs creation fails the resource straight away. Set
 `dependency_download_retries` to have it retry those downloads:
 
@@ -287,12 +286,18 @@ jobs:
 
 ## Python
 
-`python.version` installs a prebuilt CPython from
-[python-build-standalone](https://github.com/astral-sh/python-build-standalone) when the rootfs is created. Unlike
-pyenv it needs no compiler or `-dev` packages, so the image is smaller and nothing is built at task time. `python`,
-`python3` and `pip` are on the `PATH`, and `pip install` works without a virtualenv (the interpreter is not marked
-externally managed). A minor version such as `3.12` resolves to the newest patch in the pinned python-build-standalone
-release, which lists only the latest patch per minor; use [pyenv](#pyenv) for older patches or custom builds.
+`python.version` installs [uv](https://docs.astral.sh/uv/) and, with it, a prebuilt CPython when the rootfs is
+created. Nothing is compiled, so no compiler or `-dev` packages end up in the image. A minor version such as `3.12`
+resolves to its newest patch. `python`, `python3` and `uv` are on the `PATH`.
+
+The interpreter is marked externally managed ([PEP 668](https://peps.python.org/pep-0668/)), so a plain `pip install`
+is refused. Install packages into a virtualenv with uv instead: `uv venv` and `uv pip install`, or `uv sync` for a
+`pyproject.toml` project. uv's cache lives in `$CACHE_DIRECTORY/uv`, so packages aren't downloaded again on the next
+build.
+
+uv reads `.python-version` (write it with `uv python pin 3.12.2`) and `requires-python` from `pyproject.toml`.
+`uv python install` installs the version they name, and `uv run`, `uv sync` and `uv venv` use it. A bare `python`
+always stays the `python.version` interpreter.
 
 Example resource configuration:
 
@@ -322,49 +327,9 @@ jobs:
             - -ec
             - |
               cd my-source-code
-              pip install -r requirements.txt
-              pytest
-```
-
-## Pyenv
-
-[pyenv](https://github.com/pyenv/pyenv) is used to install and manage Python versions. The `.python-version` file is
-supported by this resource. This allows you to commit the required Python version to source control and keep it up to
-date using tools like [renovatebot](https://docs.renovatebot.com/).
-
-Example resource configuration:
-
-```yaml
-resources:
-  - name: setup-runtime
-    type: setup-runtime-resource
-    source:
-      pyenv:
-        enabled: true
-```
-
-Job example:
-
-```yaml
-jobs:
-  - name: build
-    plan:
-      - in_parallel:
-          - get: setup-runtime
-          - get: my-source-code
-      - task: build-project
-        image: setup-runtime
-        config:
-          platform: linux
-          args:
-            - -ec
-            - |
-              cd my-source-code
-              # Skip-existing is required to prevent pyenv from failing when the version is already installed.
-              pyenv install --skip-existing
-              pyenv local
-              pip install -r requirements.txt
-              pytest
+              uv venv
+              uv pip install -r requirements.txt
+              uv run pytest
 ```
 
 ## Gradle
@@ -420,14 +385,15 @@ caches:
 | Gradle | `$CACHE_DIRECTORY/gradle` (`GRADLE_USER_HOME`): dependencies, wrapper distributions and the build cache |
 | npm, yarn, pnpm | `$CACHE_DIRECTORY/npm`, `$CACHE_DIRECTORY/yarn`, `$CACHE_DIRECTORY/pnpm` |
 | nvm | `$CACHE_DIRECTORY/nvm-downloads`: the Node.js archives `nvm install` fetches, so a `.nvmrc` version is not downloaded again |
+| uv | `$CACHE_DIRECTORY/uv` (`UV_CACHE_DIR`): the packages `uv pip install` and `uv sync` download, and the interpreter archives `uv python install` fetches (`UV_PYTHON_CACHE_DIR`) |
 | Docker images | `$CACHE_DIRECTORY/docker`: the images your task ran, with testcontainers enabled |
 
 The first build on a worker downloads everything; later builds reuse what is already there.
 
 The Java, Maven, Gradle, Node and Python versions you list in `source` are built into the image, so they are
 available on every build without a download. A version the task installs itself (`sdk install`, `nvm install`,
-`pyenv install`, or a `.sdkmanrc`/`.nvmrc` naming a version that isn't in `source`) is downloaded again on every
-build. Add it to `source` instead.
+or a `.sdkmanrc`/`.nvmrc` naming a version that isn't in `source`) is downloaded again on every
+build. Add it to `source` instead. A Python version `uv python install` fetches is not downloaded again, only unpacked.
 
 The cache grows as your dependencies change. To cap it, set the task param `MAX_CACHE_SIZE_MB`: when a build ends
 with the cache larger than that, the whole cache is cleared and the next build starts cold.

@@ -40,7 +40,7 @@ function print_group_output() {
 all_started=$SECONDS
 start_group sdkman sdkman java
 start_group node nvm node
-start_group pyenv pyenv
+start_group python python
 start_group golang golang
 
 failed=0
@@ -69,7 +69,7 @@ done
 (( ${#started_at[@]} == 0 )) || info_to_output_file "runtimes ready in $(format_elapsed $((SECONDS - all_started)))"
 
 # Fixed order, as the hooks used to append them, so PATH precedence is unchanged.
-for name in sdkman node pyenv golang; do
+for name in sdkman node python golang; do
   if [[ -f "$work_dir/$name.bashrc" ]]; then
     cat "$work_dir/$name.bashrc" >> "$chroot_dir$RUNTIME_HOME/.bashrc"
   fi
