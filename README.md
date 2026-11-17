@@ -286,18 +286,12 @@ jobs:
 
 ## Python
 
-`python.version` installs [uv](https://docs.astral.sh/uv/) and, with it, a prebuilt CPython when the rootfs is
-created. Nothing is compiled, so no compiler or `-dev` packages end up in the image. A minor version such as `3.12`
-resolves to its newest patch. `python`, `python3` and `uv` are on the `PATH`.
+`python.version` installs a prebuilt CPython (`3.12` means its newest patch) with [uv](https://docs.astral.sh/uv/);
+`python`, `python3` and `uv` are on the `PATH`.
 
-The interpreter is marked externally managed ([PEP 668](https://peps.python.org/pep-0668/)), so a plain `pip install`
-is refused. Install packages into a virtualenv with uv instead: `uv venv` and `uv pip install`, or `uv sync` for a
-`pyproject.toml` project. uv's cache lives in `$CACHE_DIRECTORY/uv`, so packages aren't downloaded again on the next
-build.
-
-uv reads `.python-version` (write it with `uv python pin 3.12.2`) and `requires-python` from `pyproject.toml`.
-`uv python install` installs the version they name, and `uv run`, `uv sync` and `uv venv` use it. A bare `python`
-always stays the `python.version` interpreter.
+A plain `pip install` is refused ([PEP 668](https://peps.python.org/pep-0668/)): use `uv venv` + `uv pip install`, or
+`uv sync`. Packages are cached between builds. A `.python-version` or `requires-python` is honoured by `uv run`,
+`uv sync` and `uv venv`; a bare `python` stays the `python.version` interpreter.
 
 Example resource configuration:
 
