@@ -13,11 +13,11 @@ declare -A group_of started_at
 function start_group() {
   local name="$1"
   shift
-  local wanted=false runtime
+  local runtime_requested_in_source=false runtime
   for runtime in "$@"; do
-    if runtime_wanted "$runtime"; then wanted=true; fi
+    if runtime_wanted "$runtime"; then runtime_requested_in_source=true; fi
   done
-  [[ "$wanted" = "true" ]] || return 0
+  [[ "$runtime_requested_in_source" = "true" ]] || return 0
   (
     export GROUP_NAME="$name" RUNTIME_BASHRC="$work_dir/$name.bashrc" SETUP_PARALLEL=true
     for runtime in "$@"; do
