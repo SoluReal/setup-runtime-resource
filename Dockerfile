@@ -8,6 +8,8 @@ RUN apk add --root /base --initdb --no-cache \
       coreutils gnutar grep sed findutils gzip && \
     mkdir -p /base/etc/apk/keys && cp /etc/apk/repositories /base/etc/apk/ && cp /etc/apk/keys/* /base/etc/apk/keys/ && \
     rm -rf /base/var/cache/apk /base/dev/* && \
+    # Hooks install tools into /usr/local like on any FHS distro; Wolfi's layout leaves it out.
+    mkdir -p /base/usr/local/bin /base/usr/local/sbin /base/usr/local/lib /base/usr/local/share && \
     tar -C /base -c . | zstd -19 -T0 -o /base.tar.zst
 
 FROM cgr.dev/chainguard/wolfi-base AS resource
