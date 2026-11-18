@@ -39,27 +39,16 @@ TEST="maven gradle" ./build-and-test.sh
 
 ## Architecture
 
-Per runtime: `assets/runtimes/<name>.sh` (installs it on the host against the rootfs path) and
-`assets/includes/<name>.sh` (sourced from `bashrc.sh` at task time; registers caches). `common.sh` decides whether
-`source` requests a runtime (`runtime_is_requested_in_source`) and which Debian packages it needs
-(`runtime_dependencies`). `installers/` holds what `in` itself runs: the rootfs (`rootfs.sh`) and testcontainers'
-packages and apt repository. Also document new `source` options in `README.md` and read them in `in`'s one `jq` call.
+A runtime is `assets/runtimes/<name>.sh` (installs it on the host into the rootfs path), `assets/includes/<name>.sh`
+(sourced at task time; registers caches), an entry in `runtime_is_requested_in_source` / `runtime_dependencies`
+(`common.sh`) and a group in `hooks/runtimes.sh`. New `source` options: read them in `in`'s `jq` call and document
+them in `README.md`.
 
-`in` runs apt-fast and the `hook` in a plain `chroot` (no fakechroot: it is unmaintained). A chroot has no /dev or
-/proc, so `in` bind-mounts a few of the container's /dev nodes into it for the build and unmounts them at the end. It
-can't mknod them: workers may run privileged containers in a user namespace (rootless), where mknod of a device always
-fails. The runtime installers run on the host against the rootfs path, overlapping the apt install, so they need
-neither. `in` calls the `hooks/` explicitly, in order: `runtimes.sh` in the background during the apt install, then
-`runtime-user.sh`, `testcontainers.sh` and `cleanup.sh`, all before apt is purged; it rewrites absolute symlinks at
-the end. The host needs a glibc and libstdc++/libatomic at least as new as trixie's, since runtime installers run
-rootfs binaries on it. `add_metadata` and `add_task_env_var` write to the per-build `$STATE_DIR`; `in` builds its
-JSON from there with `jq`.
-
-`hooks/runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
-`golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),
-`info_spinner` logs one atomic `▶`/`✔` line per step to the shared `$OUTPUT_FILE` (no `\r` spinners), raw tool output goes
-to a private file shown only on failure or `verbose`, and `$RUNTIME_BASHRC` is merged afterwards in fixed order. Write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside a group stay
-serial: sdkman's shared state is not safe for concurrent `sdk install`.
+- `in` bind-mounts a few /dev nodes into the chroot: rootless workers forbid mknod of devices.
+- Runtime installers run rootfs binaries on the host, so the image needs a glibc and libstdc++/libatomic at least as
+  new as trixie's.
+- Runtime groups run concurrently: write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside
+  a group stay serial: sdkman's shared state is not safe for concurrent `sdk install`.
 
 Caching invariants:
 - Everything is cached **in place**: a tool pointed at `$CACHE_DIRECTORY` by an env var and registered with
