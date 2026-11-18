@@ -81,6 +81,7 @@ trap 'kill $INFO_LOGGER_PID 2>/dev/null || true; [[ -z "$RUNTIMES_PID" ]] || kil
 info "Extracting the base rootfs and installing dependencies (this can take some time)..."
 rootfs_extract_base
 rootfs_configure_apt
+testcontainers_configure_apt
 
 mkdir -p "$rootfs$RUNTIME_DIR/plugins"
 

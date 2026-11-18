@@ -42,20 +42,6 @@ function rootfs_configure_apt() {
     # apt-fast downloads with aria2, which ignores apt's proxy setting.
     export ARIA2_EXTRA_ARGS="--http-proxy=$debian_proxy"
   fi
-
-  if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
-    install -m 0755 -d "$rootfs/etc/apt/keyrings"
-    curl_retry -fsSL https://download.docker.com/linux/debian/gpg -o "$rootfs/etc/apt/keyrings/docker.asc"
-    chmod a+r "$rootfs/etc/apt/keyrings/docker.asc"
-
-    cat > "$rootfs/etc/apt/sources.list.d/docker.sources" <<SOURCES
-Types: deb
-URIs: https://download.docker.com/linux/debian
-Suites: $(. "$rootfs/etc/os-release" && echo "$VERSION_CODENAME")
-Components: stable
-Signed-By: /etc/apt/keyrings/docker.asc
-SOURCES
-  fi
 }
 
 function rootfs_install_dependencies() {
