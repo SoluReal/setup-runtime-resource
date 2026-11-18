@@ -40,6 +40,22 @@ function runtime_is_requested_in_source() {
   esac
 }
 
+# The Debian packages a requested runtime needs in the rootfs.
+function runtime_dependencies() {
+  runtime_is_requested_in_source "$1" || return 0
+  case "$1" in
+    sdkman) echo "curl zip unzip" ;;
+    # nvm downloads node with curl when a task installs one itself.
+    nvm) echo "libstdc++6 libatomic1 build-essential $([[ "$nvm_enabled" = "true" ]] && echo curl)" ;;
+    golang) echo "curl build-essential" ;;
+  esac
+}
+
+# Docker (not podman) needs real root in the task and Docker's own apt repository.
+function testcontainers_uses_docker() {
+  [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]
+}
+
 # 72 -> 1m12s
 function format_elapsed() {
   local secs=$1
@@ -67,42 +83,16 @@ function group_event() {
 }
 
 function info_spinner() {
-  local progress_message=$1
-  local finished_message=$2
-  local pid=$3
-  local delay=0.05
-  local spin='|/-\'
-  local status
+  local progress_message=$1 finished_message=$2 pid=$3
+  local started=$SECONDS status=0
 
-  if [ "$SETUP_PARALLEL" = "true" ]; then
-    local started=$SECONDS
-    group_event "▶" "$Green" "$progress_message"
-    status=0
-    wait "$pid" || status=$?
-    if [ $status -eq 0 ]; then
-      group_event "✔" "$Green" "$finished_message" "$(format_elapsed $((SECONDS - started)))"
-    else
-      group_event "✘" "$Red" "failed: $progress_message" "$(format_elapsed $((SECONDS - started)))"
-    fi
-  elif [ "$VERBOSE" = "true" ]; then
-    info_to_output_file "$progress_message"
-    wait "$pid"
-    status=$?
-    printf "\n" >> $OUTPUT_FILE
-    info_to_output_file "$finished_message"
+  group_event "▶" "$Green" "$progress_message"
+  wait "$pid" || status=$?
+  if [ $status -eq 0 ]; then
+    group_event "✔" "$Green" "$finished_message" "$(format_elapsed $((SECONDS - started)))"
   else
-    while kill -0 "$pid" 2>/dev/null; do
-        for i in $(seq 0 3); do
-            printf "\r$Green[setup-runtime] %s [%c]$Color_Off" "$progress_message" "${spin:i:1}" >> "$OUTPUT_FILE"
-            sleep $delay
-        done
-    done
-    wait "$pid"
-    status=$?
-
-    printf "\r$Green[setup-runtime] %s                                   $Color_Off\n" "$finished_message" >> "$OUTPUT_FILE"
+    group_event "✘" "$Red" "failed: $progress_message" "$(format_elapsed $((SECONDS - started)))"
   fi
-
   return $status
 }
 
@@ -131,34 +121,13 @@ function retry() {
   done
 }
 
-chroot_exec() {
-    local rootfs="${1}"
-    shift
-    local cmd="$*"
-    chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
-}
-
+# State shared by `in` and its hooks lives in $STATE_DIR, a fresh directory per build.
 function add_task_env_var() {
-  local env_line="${1}"
-
-  touch /tmp/env_vars
-  echo "$env_line" >> /tmp/env_vars
+  echo "$1" >> "$STATE_DIR/env_vars"
 }
 
 function add_metadata() {
-  local key="${1}"
-  local value="${2}"
-
-  touch /tmp/metadata
-  echo "{\"name\": \"$key\", \"value\": \"$value\"}" >> /tmp/metadata
-}
-
-function add_trap() {
-  local trap_cmd="${1}"
-  local trap_signal="${2:-EXIT}"
-
-  touch "/tmp/traps_$trap_signal"
-  echo "$trap_cmd" >> "/tmp/traps_$trap_signal"
+  jq -nc --arg name "$1" --arg value "$2" '{name: $name, value: $value}' >> "$STATE_DIR/metadata"
 }
 
 function log_on_error() {

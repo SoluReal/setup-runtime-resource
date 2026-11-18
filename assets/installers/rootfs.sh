@@ -55,8 +55,7 @@ function rootfs_install_dependencies() {
 
 # apt-fast joins two apt directories without a slash, so name the archives itself.
 function rootfs_apt_fast() {
-  APTCACHE=/var/cache/apt/archives DLDIR=/var/cache/apt/archives/apt-fast \
-    rootfs_exec apt-fast -y -o Dpkg::Options::=--force-unsafe-io "$@"
+  APTCACHE=/var/cache/apt/archives DLDIR=/var/cache/apt/archives/apt-fast rootfs_exec apt-fast -y "$@"
 }
 
 # The base marks aria2 and lockfile-progs auto-installed, so purging apt with --autoremove takes them along.

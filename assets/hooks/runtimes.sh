@@ -19,7 +19,7 @@ function start_group() {
   done
   [[ "$runtime_requested_in_source" = "true" ]] || return 0
   (
-    export GROUP_NAME="$name" RUNTIME_BASHRC="$work_dir/$name.bashrc" SETUP_PARALLEL=true
+    export GROUP_NAME="$name" RUNTIME_BASHRC="$work_dir/$name.bashrc"
     for runtime in "$@"; do
       bash "$ROOT_DIR/runtimes/$runtime.sh" "$chroot_dir"
     done

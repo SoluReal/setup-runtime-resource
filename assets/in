@@ -8,9 +8,6 @@ exec 1>&2 # redirect all output to stderr for logging
 export ROOT_DIR=$(dirname $0)
 source $ROOT_DIR/common.sh
 source $ROOT_DIR/installers/testcontainers.sh
-source $ROOT_DIR/installers/sdkman.sh
-source $ROOT_DIR/installers/node.sh
-source $ROOT_DIR/installers/golang.sh
 source $ROOT_DIR/installers/rootfs.sh
 
 dest=$1
@@ -19,54 +16,54 @@ payload="$(cat <&0)"
 
 hash=$(hash_source "$payload")
 
-extra_dependencies=$(jq -r '(.source.dependencies // [] | join(" "))' <<< "$payload")
-hook=$(jq -r '(.source.hook // "")' <<< "$payload")
-verbose=$(jq -r '(.source.verbose // "")' <<< "$payload")
-# jq's // would turn an explicit false into the default.
-telemetry_enabled=$(jq -r '(.source.telemetry.enabled | if . == null then "true" else tostring end)' <<< "$payload")
+# One jq call reads every option into a shell variable; a missing option gets its default.
+eval "$(jq -r '.source as $s | {
+  dependencies: ($s.dependencies // [] | join(" ")),
+  hook: ($s.hook // ""),
+  VERBOSE: ($s.verbose // ""),
+  DEBUG: ($s.debug // false),
+  telemetry_enabled: ($s.telemetry.enabled | if . == null then true else . end),
+  testcontainers_enabled: ($s.testcontainers.enabled // false),
+  testcontainers_rootless: ($s.testcontainers.rootless // false),
+  java_version: ($s.java.version // ""),
+  extra_java_versions: ($s.java.extra_versions // [] | tojson),
+  sdkman_enabled: ($s.sdkman.enabled // false),
+  nvm_enabled: ($s.nvm.enabled // false),
+  nodejs_version: ($s.nodejs.version // ""),
+  yarn_version: ($s.nodejs.yarn.version // ""),
+  pnpm_version: ($s.nodejs.pnpm.version // ""),
+  bun_version: ($s.nodejs.bun.version // ""),
+  maven_version: ($s.maven.version // ""),
+  maven_wrapper: ($s.maven.wrapper // false),
+  gradle_version: ($s.gradle.version // ""),
+  gradle_wrapper: ($s.gradle.wrapper // false),
+  python_version: ($s.python.version // ""),
+  uv_enabled: ($s.uv.enabled // false),
+  golang_version: ($s.golang.version // ""),
+  debian_proxy: ($s.debian_proxy // ""),
+  minimal_image: ($s.minimal_image // false),
+  dependency_download_retries: ($s.dependency_download_retries // 0)
+} | to_entries[] | "export \(.key)=\(.value | tostring | @sh)"' <<< "$payload")"
 
-export testcontainers_enabled=$(jq -r '(.source.testcontainers.enabled // "false")' <<< "$payload")
-export testcontainers_rootless=$(jq -r '(.source.testcontainers.rootless // "false")' <<< "$payload")
-export java_version=$(jq -r '(.source.java.version // "")' <<< "$payload")
-export sdkman_enabled=$(jq -r '(.source.sdkman.enabled // "false")' <<< "$payload")
-export extra_java_versions=$(jq -r '(.source.java.extra_versions // [])' <<< "$payload")
-export nvm_enabled=$(jq -r '(.source.nvm.enabled // "false")' <<< "$payload")
-export nodejs_version=$(jq -r '(.source.nodejs.version // "")' <<< "$payload")
-export yarn_version=$(jq -r '(.source.nodejs.yarn.version // "")' <<< "$payload")
-export pnpm_version=$(jq -r '(.source.nodejs.pnpm.version // "")' <<< "$payload")
-export bun_version=$(jq -r '(.source.nodejs.bun.version // "")' <<< "$payload")
-
-export maven_version=$(jq -r '(.source.maven.version // "")' <<< "$payload")
-export maven_wrapper=$(jq -r '(.source.maven.wrapper // "false")' <<< "$payload")
-export gradle_version=$(jq -r '(.source.gradle.version // "")' <<< "$payload")
-export gradle_wrapper=$(jq -r '(.source.gradle.wrapper // "false")' <<< "$payload")
-
-export python_version=$(jq -r '(.source.python.version // "")' <<< "$payload")
-export uv_enabled=$(jq -r '(.source.uv.enabled // "false")' <<< "$payload")
-export golang_version=$(jq -r '(.source.golang.version // "")' <<< "$payload")
-export debian_proxy=$(jq -r '(.source.debian_proxy // "")' <<< "$payload")
-export minimal_image=$(jq -r '(.source.minimal_image // "false")' <<< "$payload")
-
-export dependency_download_retries=$(jq -r '(.source.dependency_download_retries // "0")' <<< "$payload")
-
-export VERBOSE=$verbose
 export DISABLE_TELEMETRY=false
 [[ "$telemetry_enabled" = "false" ]] && DISABLE_TELEMETRY=true
-export DEBUG=$(jq -r '(.source.debug // "false")' <<< "$payload")
 
 dependencies="
-  $extra_dependencies
-  $(sdkman_get_dependencies)
-  $(node_get_dependencies)
-  $(golang_get_dependencies)
+  $dependencies
+  $(runtime_dependencies sdkman)
+  $(runtime_dependencies nvm)
+  $(runtime_dependencies golang)
   $(testcontainers_get_dependencies)
 "
 dependencies=$(echo "$dependencies" | tr -s ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
 rootfs="$dest/rootfs"
 
-export OUTPUT_FILE=/tmp/info_log
-touch $OUTPUT_FILE
+export STATE_DIR
+STATE_DIR=$(mktemp -d)
+touch "$STATE_DIR/env_vars" "$STATE_DIR/metadata"
+export OUTPUT_FILE="$STATE_DIR/info_log"
+touch "$OUTPUT_FILE"
 # --pid makes tail drain the file and exit once this script ends; killing it early drops the last
 # lines whenever the large verbose group blocks leave it behind.
 tail -f -s 0.2 --pid=$$ "$OUTPUT_FILE" 3>&- &
@@ -88,20 +85,17 @@ mkdir -p "$rootfs$RUNTIME_DIR/plugins"
 # The runtime installers run on the host and don't need the dependencies, so they overlap with the apt install
 # (their own process group, so the trap can stop them).
 set -m
-log_on_error bash "$ROOT_DIR/hooks/customize-10-runtimes.sh" "$rootfs" &
+log_on_error bash "$ROOT_DIR/hooks/runtimes.sh" "$rootfs" &
 RUNTIMES_PID=$!
 set +m
 
 log_on_error rootfs_install_dependencies "$dependencies"
 
-for customize_hook in "$ROOT_DIR"/hooks/customize-*.sh; do
-  if [[ "$customize_hook" == *customize-10-runtimes.sh ]]; then
-    wait "$RUNTIMES_PID" || exit $?
-    RUNTIMES_PID=""
-  else
-    log_on_error bash "$customize_hook" "$rootfs"
-  fi
-done
+log_on_error bash "$ROOT_DIR/hooks/runtime-user.sh" "$rootfs"
+log_on_error bash "$ROOT_DIR/hooks/testcontainers.sh" "$rootfs"
+wait "$RUNTIMES_PID" || exit $?
+RUNTIMES_PID=""
+log_on_error bash "$ROOT_DIR/hooks/cleanup.sh" "$rootfs"
 
 log_on_error rootfs_remove_installer
 
@@ -109,7 +103,8 @@ trap - EXIT
 
 if [[ -n "$hook" ]]; then
   info "Running custom hook..."
-  log_on_error chroot_exec "$dest/rootfs/" "set -e;$hook"
+  # The runtimes' .bashrc lines (PATH, sdkman, nvm) are live in the hook; bashrc.sh's plugins are not yet.
+  log_on_error rootfs_exec /bin/bash -lc "[[ ! -f $RUNTIME_HOME/.bashrc ]] || source $RUNTIME_HOME/.bashrc; set -e; $hook"
   info "Custom hook finished"
 fi
 
@@ -128,38 +123,16 @@ add_task_env_var "HOME=$RUNTIME_HOME"
 # Tasks run as the runtime user, except non-rootless testcontainers: dockerd
 # needs real root and the runtime user has no way to escalate.
 task_user="$RUNTIME_USER"
-if [[ "$testcontainers_enabled" = "true" && "$testcontainers_rootless" != "true" ]]; then
+if testcontainers_uses_docker; then
   task_user=""
 fi
 
 add_metadata "user" "$task_user"
 
-# BASH_ENV makes non-interactive shells load the bash profile.
-jq -n "{
-  env: [$(sed 's/.*/\"&\"/' /tmp/env_vars | tr '\n' ',' | sed 's/,$//')],
-  user: \"$task_user\"}
-" > "$dest/metadata.json"
+jq -n --arg user "$task_user" --rawfile env "$STATE_DIR/env_vars" \
+  '{env: ($env | split("\n") | map(select(length > 0))), user: $user}' > "$dest/metadata.json"
 
 log_on_error cat "$dest/metadata.json"
-
-add_trap teardown_setup_runtime EXIT
-
-# bash allows one trap directive, so all traps run from one function, and only in the main
-# process (its pid is saved at startup) since sub-bashes would otherwise re-run them.
-for f in /tmp/traps_*; do
-  if [[ -e "$f" ]]; then
-    sig="${f#/tmp/traps_}"
-    cmds=$(paste -sd ";" "$f")
-    echo "function trap_$sig() {
-    current_pid=\$\$
-    main_pid=\$(cat /tmp/main_pid)
-  if [[ \"\$current_pid\" = \"\$main_pid\" ]]; then
-    $cmds
-  fi
-}" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
-    echo "trap \"trap_$sig\" $sig" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
-  fi
-done
 
 cat "$ROOT_DIR/includes/bashrc.sh" >> "$dest/rootfs$RUNTIME_HOME/.bashrc"
 
@@ -169,12 +142,4 @@ chown -R "$RUNTIME_UID:$RUNTIME_UID" "$dest/rootfs$RUNTIME_HOME" "$dest/rootfs$R
 
 info "Total size of setup-runtime rootfs: $(du -sh "$dest/rootfs" | awk '{print $1}')"
 
-touch /tmp/metadata || true
-
-METADATA=$(cat /tmp/metadata 2>/dev/null | tr -s '\n' ',' | sed 's/,$//')
-
-rm -rf /tmp/node-compile-cache
-
-jq -n \
-  --arg hash "$hash" \
-  "{ version: { hash: \$hash }, metadata: [$METADATA] }" >&3
+jq -n --arg hash "$hash" --slurpfile metadata "$STATE_DIR/metadata" '{version: {hash: $hash}, metadata: $metadata}' >&3

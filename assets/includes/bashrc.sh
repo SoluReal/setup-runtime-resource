@@ -136,10 +136,17 @@ if [[ -d "$RUNTIME_DIR/plugins" ]]; then
   done
 fi
 
-# Main pid, so traps run only in the main bash process.
+# Every bash in the task sources this file, so teardown runs only when the first (main) one exits.
 if [[ ! -f /tmp/main_pid ]]; then
   echo $$ > /tmp/main_pid
 fi
+
+function teardown_on_exit() {
+  if [[ "$$" = "$(cat /tmp/main_pid)" ]]; then
+    teardown_setup_runtime
+  fi
+}
+trap teardown_on_exit EXIT
 
 if [[ ! -f /tmp/runtime-prep-applied ]]; then
   touch /tmp/runtime-prep-applied
