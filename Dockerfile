@@ -22,8 +22,9 @@ RUN --mount=type=bind,from=base,target=/base apk add --no-cache gnutar && \
 
 FROM cgr.dev/chainguard/wolfi-base AS resource
 
-# The runtime installers run rootfs binaries on this host, so it needs glibc and libstdc++/libatomic.
-RUN apk add --no-cache bash jq curl unzip zip libatomic libstdc++ coreutils gnutar findutils grep sed gzip mount umount
+# The runtime installers run rootfs binaries on this host, so it needs glibc and libstdc++/libatomic;
+# uv's installer finds glibc with ldd (posix-libc-utils).
+RUN apk add --no-cache bash jq curl unzip zip libatomic libstdc++ coreutils gnutar findutils grep sed gzip mount umount posix-libc-utils
 
 COPY assets /opt/resource/
 RUN chmod +x /opt/resource/* /opt/resource/hooks/*
