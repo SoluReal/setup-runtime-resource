@@ -68,9 +68,17 @@ touch "$OUTPUT_FILE"
 # lines whenever the large verbose group blocks leave it behind.
 tail -f -s 0.2 --pid=$$ "$OUTPUT_FILE" 3>&- &
 INFO_LOGGER_PID=$!
-# A surviving tail or runtime installer holds the task's stderr open, so Concourse would wait on a failed build forever.
+# A surviving tail, runtime installer or apt holds the task's stderr open, so Concourse would wait on a failed build
+# forever. Bind mounts left in the output would make it impossible to remove.
 RUNTIMES_PID=""
-trap 'kill $INFO_LOGGER_PID 2>/dev/null || true; [[ -z "$RUNTIMES_PID" ]] || kill -- -$RUNTIMES_PID 2>/dev/null || true' EXIT
+APT_PID=""
+function cleanup_failed_build() {
+  kill "$INFO_LOGGER_PID" 2>/dev/null || true
+  local pid
+  for pid in $RUNTIMES_PID $APT_PID; do kill -- "-$pid" 2>/dev/null || true; done
+  rootfs_unmount || true
+}
+trap cleanup_failed_build EXIT
 
 # apt closes every possible descriptor before running a method, which with a worker's 2^31 limit takes hours.
 [[ "$(ulimit -n)" != unlimited ]] && (( $(ulimit -n) <= 65536 )) || ulimit -Sn 65536
@@ -82,24 +90,29 @@ testcontainers_configure_apt
 
 mkdir -p "$rootfs$RUNTIME_DIR/plugins"
 
-# The runtime installers run on the host and don't need the dependencies, so they overlap with the apt install
-# (their own process group, so the trap can stop them).
+# The runtime installers run on the host and don't need the dependencies, so they overlap with the apt install.
+# Each runs in its own process group, so the first to fail stops the build and the trap stops the other.
 set -m
 log_on_error bash "$ROOT_DIR/hooks/runtimes.sh" "$rootfs" &
 RUNTIMES_PID=$!
+log_on_error rootfs_install_dependencies "$dependencies" &
+APT_PID=$!
 set +m
 
-log_on_error rootfs_install_dependencies "$dependencies"
+while [[ -n "$APT_PID" ]]; do
+  wait -n -p finished $RUNTIMES_PID "$APT_PID" || exit $?
+  if [[ "$finished" == "$APT_PID" ]]; then APT_PID=""; else RUNTIMES_PID=""; fi
+done
 
 log_on_error bash "$ROOT_DIR/hooks/runtime-user.sh" "$rootfs"
 log_on_error bash "$ROOT_DIR/hooks/testcontainers.sh" "$rootfs"
-wait "$RUNTIMES_PID" || exit $?
+if [[ -n "$RUNTIMES_PID" ]]; then wait "$RUNTIMES_PID" || exit $?; fi
 RUNTIMES_PID=""
 log_on_error bash "$ROOT_DIR/hooks/cleanup.sh" "$rootfs"
 
 log_on_error rootfs_remove_installer
-
-trap - EXIT
+# Before the hook: the runtimes it calls go through these links.
+rootfs_fix_symlinks
 
 if [[ -n "$hook" ]]; then
   info "Running custom hook..."
@@ -114,8 +127,8 @@ if [[ "$minimal_image" = "true" ]]; then
   find "$dest/rootfs/usr/bin" -maxdepth 1 -name 'dpkg-*' -delete
 fi
 
-rootfs_remove_dev
-rootfs_fix_symlinks
+rootfs_unmount
+trap - EXIT
 
 add_task_env_var "BASH_ENV=$RUNTIME_HOME/.bashrc"
 add_task_env_var "HOME=$RUNTIME_HOME"

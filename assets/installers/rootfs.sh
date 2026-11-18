@@ -12,28 +12,31 @@ function rootfs_extract_base() {
   chmod 1777 "$rootfs/tmp"
   # Package scripts and the hook resolve names inside the chroot.
   cp /etc/resolv.conf "$rootfs/etc/resolv.conf"
-  rootfs_make_dev
+  rootfs_mount
 }
 
-# A chroot has no /dev. A worker that runs privileged containers in a user namespace forbids mknod of devices,
-# so bind the container's own nodes instead.
+# A chroot has no /dev or /proc. A worker that runs privileged containers in a user namespace forbids mknod of
+# devices and mounting a new proc, so bind the container's own (recursively: a user namespace can't split /proc).
 ROOTFS_DEVICES=(null zero random urandom tty)
 
-function rootfs_make_dev() {
-  mkdir -p "$rootfs/dev"
+function rootfs_mount() {
+  mkdir -p "$rootfs/dev" "$rootfs/proc"
   for device in "${ROOTFS_DEVICES[@]}"; do
     rm -f "$rootfs/dev/$device"
     touch "$rootfs/dev/$device"
     mount --bind "/dev/$device" "$rootfs/dev/$device"
   done
+  mount --rbind /proc "$rootfs/proc"
 }
 
-# Device nodes don't survive Concourse streaming the rootfs to an unprivileged task.
-function rootfs_remove_dev() {
-  for device in "${ROOTFS_DEVICES[@]}"; do
-    umount "$rootfs/dev/$device"
-    rm -f "$rootfs/dev/$device"
+# Bind mounts don't survive Concourse streaming the rootfs to a task. Lazy, so a process the hook left behind can't
+# fail the build; safe to run twice, as the EXIT trap does after a failure.
+function rootfs_unmount() {
+  local path
+  for path in "${ROOTFS_DEVICES[@]/#/$rootfs/dev/}" "$rootfs/proc"; do
+    if grep -qF " $path " /proc/self/mounts; then umount -l "$path"; fi
   done
+  for device in "${ROOTFS_DEVICES[@]}"; do rm -f "$rootfs/dev/$device"; done
 }
 
 function rootfs_configure_apt() {
@@ -58,10 +61,17 @@ function rootfs_apt_fast() {
   APTCACHE=/var/cache/apt/archives DLDIR=/var/cache/apt/archives/apt-fast rootfs_exec apt-fast -y "$@"
 }
 
-# The base marks aria2 and lockfile-progs auto-installed, so purging apt with --autoremove takes them along.
-# The dpkg database, perl and debconf go too: nothing can install packages after this.
+# The base marks aria2 and lockfile-progs auto-installed, so autoremove takes them. apt goes only when no installed
+# package depends on it: purging it would take those along. The dpkg database, perl and debconf go regardless.
 function rootfs_remove_installer() {
-  rootfs_exec apt-get -y --allow-remove-essential purge --autoremove apt || return
+  local dependents
+  dependents=$(rootfs_exec apt-cache rdepends --installed --no-recommends --no-suggests --no-enhances --no-conflicts \
+    --no-breaks --no-replaces apt | tail -n +3) || return
+  if [[ -n "$dependents" ]]; then
+    rootfs_exec apt-get -y autoremove --purge || return
+  else
+    rootfs_exec apt-get -y --allow-remove-essential purge --autoremove apt || return
+  fi
   rm -rf "$rootfs/usr/local/sbin/apt-fast" "$rootfs/etc/apt-fast.conf" "$rootfs/etc/apt" "$rootfs/var/cache/apt" \
     "$rootfs/var/lib/apt" "$rootfs/var/log/apt" "$rootfs/var/log/alternatives.log" "$rootfs/var/log/dpkg.log" \
     "$rootfs"/var/lib/dpkg/* "$rootfs"/etc/dpkg/* "$rootfs"/usr/share/dpkg/* "$rootfs/usr/libexec/dpkg" \
@@ -71,7 +81,7 @@ function rootfs_remove_installer() {
 
 # Links the runtime installers create on the host carry the rootfs path in front, which is wrong once it is moved.
 function rootfs_fix_symlinks() {
-  find "$rootfs" -type l -lname "$rootfs/*" -print0 | while IFS= read -r -d '' link; do
+  find "$rootfs" -xdev -type l -lname "$rootfs/*" -print0 | while IFS= read -r -d '' link; do
     ln -sfn "$(readlink "$link" | sed "s|^$rootfs||")" "$link"
   done
 }

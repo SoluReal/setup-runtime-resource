@@ -6,3 +6,5 @@ dpkg --print-architecture | assert_contains "64"
 # Extracting the base tar into the rootfs must keep root ownership and the writable /tmp.
 stat -c %U /usr/bin/bash | assert_contains "root"
 stat -c %a /tmp | assert_contains "1777"
+cat /hook-python-version | assert_contains "Python 3.12"
+command -v apt-extracttemplates | assert_contains "apt-extracttemplates"
