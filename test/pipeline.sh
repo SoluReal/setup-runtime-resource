@@ -15,7 +15,7 @@ export TASK_FILE=repo/test/resources/task.yml
 
 base=""
 rootless=true
-export PRIVILEGED_WORKER_TAG=big
+export PRIVILEGED_WORKER_TAG=rootless
 debian_proxy=""
 while (($#)); do
   case "$1" in
@@ -75,7 +75,7 @@ yq ea '(. // {}) as $source ireduce ({}; . *+ $source) | (.. | select(tag == "!!
   | apply_local_flags - > "$TMP_DIR/full.yml"
 
 # One-item list per step, so steps concatenate with `+`. Images with testcontainers start a container runtime,
-# which needs the big workers: fuse workers run out of memory.
+# which needs the rootless workers: fuse workers run out of memory.
 step_yaml() {
   local privileged
   privileged="$(yq '.testcontainers.enabled == true' "$TMP_DIR/$2.yml")"
