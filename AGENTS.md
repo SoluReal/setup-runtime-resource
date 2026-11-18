@@ -25,7 +25,7 @@ TEST="maven gradle" ./build-and-test.sh
   test's `test.sh` as one `in_parallel` step against one image whose source is the deep merge of all `source.yml`s
   (lists unioned, different scalars fail naming both tests, so pin ONE version per tool across tests), minus `verbose`. Steps are
   `privileged` when their image enables testcontainers. The deploy and `build-and-test.sh` set the rendered pipeline, never the base file.
-- `ci/tasks/run-tests.sh` (the `test` job, on the resource image itself) clears each step's task cache, triggers
+- `ci/tasks/run-tests.sh` (the `test` job, on the resource image itself) clears the rootfs (resource) cache and each step's task cache, triggers
   each `test-<name>` job twice (`PARALLEL` jobs at once, default 4) and checks the **second** (warm) run: no
   `Download`/`Pulling` after the marker unless `test.env` sets `DOWNLOADS_ON_WARM_RUN="<why>"`, and one
   `[cache] restore <key> from=local <unit>=N` per key in `test.env`'s `RESTORES_CACHE_DIRECTORIES`. `full` checks the
