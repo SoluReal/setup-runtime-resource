@@ -22,7 +22,6 @@ start_docker() {
     error "/dev/net/tun is missing or can't be opened: run the task with privileged: true (see README: worker requirements)."
     exit 1
   fi
-  info "/dev/net/tun is available."
 
   # podman doesn't create the socket's parent dir; it just fails the bind.
   mkdir -p "$PODMAN_SOCKET_DIR"
