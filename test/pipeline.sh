@@ -5,7 +5,7 @@ set -euo pipefail
 # every test's test.sh against the deep merge of all source.yml files. Needs mikefarah yq v4.
 
 usage() {
-  echo "usage: $0 <base pipeline> [--no-rootless] [--debian-proxy URL]" >&2
+  echo "usage: $0 <base pipeline> [--no-rootless] [--no-worker-tags] [--debian-proxy URL]" >&2
   exit 2
 }
 
@@ -15,10 +15,12 @@ export TASK_FILE=repo/test/resources/task.yml
 
 base=""
 rootless=true
+export PRIVILEGED_WORKER_TAG=big
 debian_proxy=""
 while (($#)); do
   case "$1" in
     --no-rootless) rootless=false ;;
+    --no-worker-tags) PRIVILEGED_WORKER_TAG="" ;;
     --debian-proxy) debian_proxy="${2:?--debian-proxy needs a URL}"; shift ;;
     -*) usage ;;
     *) [[ -z "$base" ]] || usage; base="$1" ;;
@@ -72,12 +74,14 @@ for test in "${tests[@]}"; do source_files+=("$RESOURCES/$test/source.yml"); don
 yq ea '(. // {}) as $source ireduce ({}; . *+ $source) | (.. | select(tag == "!!seq")) |= unique | del(.verbose)' "${source_files[@]}" \
   | apply_local_flags - > "$TMP_DIR/full.yml"
 
-# One-item list per step, so steps concatenate with `+`. Images with testcontainers start a container runtime.
+# One-item list per step, so steps concatenate with `+`. Images with testcontainers start a container runtime,
+# which needs the big workers: fuse workers run out of memory.
 step_yaml() {
   local privileged
   privileged="$(yq '.testcontainers.enabled == true' "$TMP_DIR/$2.yml")"
   TEST_NAME="$1" IMAGE="setup-runtime-$2" PRIVILEGED="$privileged" yq -n '[{"task": strenv(TEST_NAME), "image": strenv(IMAGE)}
     | with(select(env(PRIVILEGED)); .privileged = true)
+    | with(select(env(PRIVILEGED) and strenv(PRIVILEGED_WORKER_TAG) != ""); .tags = [strenv(PRIVILEGED_WORKER_TAG)])
     | .file = strenv(TASK_FILE) | .params.TEST = strenv(TEST_NAME)]'
 }
 
