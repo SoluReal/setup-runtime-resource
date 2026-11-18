@@ -17,6 +17,14 @@ function error() {
   printf "$Red%s$Color_Off\n" "$1" >&2
 }
 
+# Renames function $1 to $2 so a wrapper can take $1's name. When $1 already is that wrapper (.bashrc sourced
+# twice), it keeps the original, so the wrapper can't end up calling itself.
+function rename_function() {
+  declare -F "$1" > /dev/null || return 1
+  declare -f "$1" | grep -qw "$2" && return 0
+  eval "$(declare -f "$1" | sed "1s/^$1 /$2 /")"
+}
+
 function cache_event() {
   printf "$Green[cache] %s$Color_Off\n" "$*"
 }
