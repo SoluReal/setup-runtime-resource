@@ -5,6 +5,7 @@ if [[ "${TESTCONTAINERS_ROOTLESS:-}" == "true" ]]; then
   [[ "$(id -u)" != "0" ]] || { echo "task should not run as root"; exit 1; }
 
   docker info | assert_contains "rootless: true"
+  { : <> /dev/net/tun; } || { echo "/dev/net/tun can't be opened"; exit 1; }
 
   stat --format="%U" "${DOCKER_HOST#unix://}" | assert_contains "runtime"
   command -v dockerd && { echo "dockerd should not be installed in rootless mode"; exit 1; } || true

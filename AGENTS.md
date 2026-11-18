@@ -25,7 +25,7 @@ TEST="maven gradle" ./build-and-test.sh
   test's `test.sh` as one `in_parallel` step against one image whose source is the deep merge of all `source.yml`s
   (lists unioned, different scalars fail naming both tests, so pin ONE version per tool across tests), minus `verbose`. Steps are
   `privileged` when their image enables testcontainers. The deploy and `build-and-test.sh` set the rendered pipeline, never the base file.
-- `ci/tasks/run-tests.sh` (the `test` job, on the resource image itself) clears each step's task cache, triggers
+- `ci/tasks/run-tests.sh` (the `test` job, on the resource image itself) clears the rootfs (resource) cache and each step's task cache, triggers
   each `test-<name>` job twice (`PARALLEL` jobs at once, default 4) and checks the **second** (warm) run: no
   `Download`/`Pulling` after the marker unless `test.env` sets `DOWNLOADS_ON_WARM_RUN="<why>"`, and one
   `[cache] restore <key> from=local <unit>=N` per key in `test.env`'s `RESTORES_CACHE_DIRECTORIES`. `full` checks the
@@ -39,22 +39,16 @@ TEST="maven gradle" ./build-and-test.sh
 
 ## Architecture
 
-Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<name>_install`, wired into
-`assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
-(sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
+A runtime is `assets/runtimes/<name>.sh` (installs it on the host into the rootfs path), `assets/includes/<name>.sh`
+(sourced at task time; registers caches), an entry in `runtime_is_requested_in_source` / `runtime_dependencies`
+(`common.sh`) and a group in `hooks/runtimes.sh`. New `source` options: read them in `in`'s `jq` call and document
+them in `README.md`.
 
-`in` runs apt-fast and the `hook` in a plain `chroot` (no fakechroot: it is unmaintained; tasks have CAP_SYS_CHROOT and
-CAP_MKNOD but no user namespaces). A chroot has no /dev or /proc and can't mount them, so `in` mknods a few /dev nodes for
-the build and removes them at the end. The runtime installers run on the host against the rootfs path, overlapping the
-apt install, so they need neither. `hooks/customize-*.sh` run before apt is purged; `in` rewrites absolute symlinks at the
-end. The host needs a glibc and libstdc++/libatomic at least as new as trixie's, since runtime installers run rootfs
-binaries on it.
-
-`hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
-`golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),
-`info_spinner` logs one atomic `▶`/`✔` line per step to the shared `$OUTPUT_FILE` (no `\r` spinners), raw tool output goes
-to a private file shown only on failure or `verbose`, and `$RUNTIME_BASHRC` is merged afterwards in fixed order. Write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside a group stay
-serial: sdkman's shared state is not safe for concurrent `sdk install`.
+- `in` bind-mounts a few /dev nodes into the chroot: rootless workers forbid mknod of devices.
+- Runtime installers run rootfs binaries on the host, so the image needs a glibc and libstdc++/libatomic at least as
+  new as trixie's.
+- Runtime groups run concurrently: write `.bashrc` lines to `$RUNTIME_BASHRC`, never the rootfs file. Installs inside
+  a group stay serial: sdkman's shared state is not safe for concurrent `sdk install`.
 
 Caching invariants:
 - Everything is cached **in place**: a tool pointed at `$CACHE_DIRECTORY` by an env var and registered with

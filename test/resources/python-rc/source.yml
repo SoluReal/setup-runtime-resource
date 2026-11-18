@@ -1,4 +1,4 @@
-python:
-  version: "3.12"
+uv:
+  enabled: true
 verbose: true
 dependency_download_retries: 3

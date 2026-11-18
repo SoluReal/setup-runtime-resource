@@ -1,9 +1,19 @@
 hook: |
   curl -fSL https://github.com/hairyhenderson/gomplate/releases/download/v4.3.3/gomplate_linux-$(dpkg --print-architecture) -o /usr/local/bin/gomplate
   chmod +x /usr/local/bin/gomplate
+  # uv links python by absolute path, so this fails unless the links are fixed before the hook.
+  /var/runtimes/uv/bin/python3 --version > /hook-python-version
+  # Package scripts and tools like ps read /proc.
+  test -r /proc/self/status
+  # Holds /dev/null open past the hook, so unmounting it must not fail the build.
+  sleep 30 < /dev/null > /dev/null 2>&1 &
 dependencies:
   - wget
   - git
   - curl
+  # Depends on apt, so it must survive removing the installer.
+  - apt-utils
+python:
+  version: "3.12"
 dependency_download_retries: 3
 verbose: true

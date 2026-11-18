@@ -110,7 +110,12 @@ function run_test() {
   echo "  $job"
   echo "=================================================================="
 
-  # Start with a cold task cache; the first run populates it.
+  # Start with a cold rootfs and task cache; the first run builds and populates them.
+  # clear-resource-cache has no --non-interactive; its prompt reads stdin.
+  if ! printf 'y\r' | fly clear-resource-cache -r "$PIPELINE/setup-runtime-$name"; then
+    echo "$job: could not clear the rootfs cache, so run 1 would not build it"
+    return 1
+  fi
   local step
   for step in $steps; do
     if ! fly clear-task-cache -j "$PIPELINE/$job" --step "$step" -n; then
@@ -129,8 +134,13 @@ function run_test() {
     fi
   done
 
+  if ! grep -q "Extracting the base rootfs" "$WORK_DIR/$name.1.log"; then
+    echo "$job reused a cached rootfs on run 1 instead of building it"
+    return 1
+  fi
+
   # The check and repo get also log the cache line, so only assets/in's bootstrap line shows a rebuild.
-  if grep -q "Bootstrapping Debian rootfs" "$log" || ! grep -q "found existing resource cache" "$log"; then
+  if grep -q "Extracting the base rootfs" "$log" || ! grep -q "found existing resource cache" "$log"; then
     echo "$job rebuilt its rootfs on run $RUNS instead of using the resource cache"
     return 1
   fi
