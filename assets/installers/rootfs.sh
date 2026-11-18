@@ -21,12 +21,26 @@ ROOTFS_DEVICES=(null zero random urandom tty)
 
 function rootfs_mount() {
   mkdir -p "$rootfs/dev" "$rootfs/proc"
+  rootfs_touch_devices
+  # An unprivileged resource container lacks CAP_SYS_ADMIN; apt only needs /dev/null to be writable there.
+  if ! rootfs_bind_mounts; then
+    info "Bind mounts are not permitted here, so the chroot gets empty /dev stand-ins and no /proc."
+    rootfs_touch_devices
+  fi
+}
+
+function rootfs_touch_devices() {
   for device in "${ROOTFS_DEVICES[@]}"; do
     rm -f "$rootfs/dev/$device"
     touch "$rootfs/dev/$device"
-    mount --bind "/dev/$device" "$rootfs/dev/$device"
   done
-  mount --rbind /proc "$rootfs/proc"
+}
+
+function rootfs_bind_mounts() {
+  for device in "${ROOTFS_DEVICES[@]}"; do
+    mount --bind "/dev/$device" "$rootfs/dev/$device" || { rootfs_unmount; return 1; }
+  done
+  mount --rbind /proc "$rootfs/proc" || { rootfs_unmount; return 1; }
 }
 
 # Bind mounts don't survive Concourse streaming the rootfs to a task. Lazy, so a process the hook left behind can't
