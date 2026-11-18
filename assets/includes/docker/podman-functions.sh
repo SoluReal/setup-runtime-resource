@@ -17,12 +17,12 @@ export TESTCONTAINERS_RYUK_DISABLED="${TESTCONTAINERS_RYUK_DISABLED:-true}"
 start_docker() {
   info "Setting up rootless Testcontainers environment (podman)..."
 
-  # pasta needs /dev/net/tun for published ports. No image ships it and mknod
-  # needs root, so the worker must provide it. Not fatal - podman still runs.
-  if [[ ! -e /dev/net/tun ]]; then
-    error "/dev/net/tun is missing - rootless container networking (published ports) will not work."
-    error "The worker must provide this device (see README: worker requirements)."
+  # pasta needs /dev/net/tun for container networking. mknod needs root, so a privileged task on the worker must provide it.
+  if [[ ! -c /dev/net/tun ]] || ! { : <> /dev/net/tun; } 2>/dev/null; then
+    error "/dev/net/tun is missing or can't be opened: run the task with privileged: true (see README: worker requirements)."
+    exit 1
   fi
+  info "/dev/net/tun is available."
 
   # podman doesn't create the socket's parent dir; it just fails the bind.
   mkdir -p "$PODMAN_SOCKET_DIR"

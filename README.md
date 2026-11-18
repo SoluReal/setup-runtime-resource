@@ -444,6 +444,9 @@ sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
 If it is still enabled, podman fails to start and the task aborts with podman's own logs.
 
+**The task needs `/dev/net/tun`.** podman's network (pasta) uses it. A privileged task gets it; without it the task aborts
+before podman starts.
+
 Note, only Concourse >8.3.0 will work with rootless + fuse-only mode.
 
 ### Limitations of rootless containers
