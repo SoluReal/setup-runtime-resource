@@ -34,7 +34,7 @@ function runtime_is_requested_in_source() {
     sdkman) [[ -n "$java_version" || -n "$maven_version" || -n "$gradle_version" || "$sdkman_enabled" = "true" ]] ;;
     nvm) [[ -n "$nodejs_version" || "$nvm_enabled" = "true" ]] ;;
     node) [[ -n "$nodejs_version" ]] ;;
-    python) [[ -n "$python_version" ]] ;;
+    python) [[ -n "$python_version" || "$uv_enabled" = "true" ]] ;;
     golang) [[ -n "$golang_version" ]] ;;
     *) return 1 ;;
   esac
@@ -135,7 +135,7 @@ chroot_exec() {
     local rootfs="${1}"
     shift
     local cmd="$*"
-    fakechroot chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
+    chroot "$rootfs" /bin/bash -lc "[[ -f $RUNTIME_HOME/.bashrc ]] && source $RUNTIME_HOME/.bashrc; $cmd"
 }
 
 function add_task_env_var() {

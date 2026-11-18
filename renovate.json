@@ -7,9 +7,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^assets/.+\\.sh$/"],
+      "managerFilePatterns": ["/^assets/.+\\.sh$/", "/^Dockerfile$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n[A-Z_]+_VERSION=(?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:ARG )?[A-Z_]+_VERSION=(?<currentValue>\\S+)"
       ]
     }
   ]

@@ -6,6 +6,8 @@ chroot_dir="$1"
 source $ROOT_DIR/common.sh
 
 export SDKMAN_DIR="$chroot_dir$SDKMAN_RUNTIME_DIR"
+# sdkman repacks a JDK's tar.gz into a zip only to unzip it right away, so storing beats compressing (~15s per JDK).
+export ZIPOPT=-0
 
 if [[ -n "$java_version" ]]; then
   source $SDKMAN_DIR/bin/sdkman-init.sh

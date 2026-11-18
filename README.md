@@ -4,7 +4,7 @@ A [Concourse](https://github.com/concourse/concourse) resource to setup a runtim
 resource is inspired by the setup github actions like [actions/setup-java](https://github.com/actions/setup-java)
 and [actions/setup-node](https://github.com/actions/setup-node).
 
-It leverages `mmdebstrap` to create a lightweight Debian rootfs with the tools you need without
+It builds a lightweight Debian rootfs with the tools you need without
 requiring root. Due to concourse resource caching, the rootfs is only created once and reused for subsequent tasks.
 
 Previously teams created their own images, pushed them to a registry and used them in their pipelines. This resource
@@ -80,6 +80,7 @@ The resource `source` configuration supports the following options:
 | `gradle.version`              | The Gradle version to install via SDKMAN.                                                                                 | `""`    |
 | `gradle.wrapper`              | Ensure Gradle cache environment variables are set even if `gradle.version` is not provided (for use with Gradle wrapper). | `false` |
 | `python.version`              | The Python version to install with [uv](#python), e.g. `3.12` (latest patch) or `3.12.2`.                                 | `""`    |
+| `uv.enabled`                  | Install [uv](#python) without a Python, so a task picks one with `.python-version`.                                       | `false` |
 | `golang.version`              | The Go version to install.                                                                                                | `""`    |
 | `nvm.enabled`                 | Enable NVM.                                                                                                               | `false` |
 | `nodejs.version`              | The Node.js version to install via NVM.                                                                                   | `""`    |
@@ -104,8 +105,8 @@ The one exception is `testcontainers.enabled: true` with `testcontainers.rootles
 that combination still runs the task as `root`. Prefer
 [rootless testcontainers](#rootless-testcontainers) instead.
 
-The rootfs has no working package manager: the dpkg database is removed during the build, so neither the `hook` nor
-a task can `apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
+The rootfs has no package manager: apt is removed during the build, so neither the `hook` nor a task can
+`apt-get install`. List Debian packages in `dependencies` instead. `dpkg --print-architecture` still works.
 
 ## Minimal image
 
@@ -118,7 +119,7 @@ run code, but is not safe to remove unconditionally for every user:
   used by `go build`, `go test`, or `go vet` on your code.
 - Node's `include/` (V8 + Node headers) - only used by `node-gyp` to compile native addons (e.g. `bcrypt`,
   `sharp`), not to run `node`/`npm`/`yarn`/`pnpm`.
-- apt and dpkg's helper tools (`apt-get`, `dpkg-*`), which can't run anyway without the dpkg database.
+- dpkg's helper tools (`dpkg-*`), which can't run anyway without the dpkg database.
 
 This can shave several hundred MB off the rootfs. It's opt-in and defaults to `false` because if your pipeline
 actually runs `jlink` against the installed JDK or compiles native npm addons, this will break it. This may
@@ -291,7 +292,8 @@ jobs:
 
 A plain `pip install` is refused ([PEP 668](https://peps.python.org/pep-0668/)): use `uv venv` + `uv pip install`, or
 `uv sync`. Packages are cached between builds. A `.python-version` or `requires-python` is honoured by `uv run`,
-`uv sync` and `uv venv`; a bare `python` stays the `python.version` interpreter.
+`uv sync` and `uv venv`; a bare `python` stays the `python.version` interpreter. `uv.enabled` installs only uv:
+the task's `uv python install` then fetches the interpreter, whose archive is cached.
 
 Example resource configuration:
 
@@ -378,6 +380,7 @@ caches:
 | Maven | `$CACHE_DIRECTORY/maven` (`MAVEN_USER_HOME`): the local repository and the distributions `mvnw` downloads |
 | Gradle | `$CACHE_DIRECTORY/gradle` (`GRADLE_USER_HOME`): dependencies, wrapper distributions and the build cache |
 | npm, yarn, pnpm | `$CACHE_DIRECTORY/npm`, `$CACHE_DIRECTORY/yarn`, `$CACHE_DIRECTORY/pnpm` |
+| SDKMAN | `$CACHE_DIRECTORY/sdkman-archives`: the archives `sdk install` fetches, so a `.sdkmanrc` version is not downloaded again |
 | nvm | `$CACHE_DIRECTORY/nvm-downloads`: the Node.js archives `nvm install` fetches, so a `.nvmrc` version is not downloaded again |
 | uv | `$CACHE_DIRECTORY/uv` (`UV_CACHE_DIR`): the packages `uv pip install` and `uv sync` download, and the interpreter archives `uv python install` fetches (`UV_PYTHON_CACHE_DIR`) |
 | Docker images | `$CACHE_DIRECTORY/docker`: the images your task ran, with testcontainers enabled |
@@ -386,8 +389,8 @@ The first build on a worker downloads everything; later builds reuse what is alr
 
 The Java, Maven, Gradle, Node and Python versions you list in `source` are built into the image, so they are
 available on every build without a download. A version the task installs itself (`sdk install`, `nvm install`,
-or a `.sdkmanrc`/`.nvmrc` naming a version that isn't in `source`) is downloaded again on every
-build. Add it to `source` instead. A Python version `uv python install` fetches is not downloaded again, only unpacked.
+`uv python install`, or a `.sdkmanrc`/`.nvmrc` naming a version that isn't in `source`) is not downloaded again, but
+it is unpacked on every build; add it to `source` to skip that too.
 
 The cache grows as your dependencies change. To cap it, set the task param `MAX_CACHE_SIZE_MB`: when a build ends
 with the cache larger than that, the whole cache is cleared and the next build starts cold.

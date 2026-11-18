@@ -68,7 +68,8 @@ for test in "${tests[@]}"; do
 done
 source_files=()
 for test in "${tests[@]}"; do source_files+=("$RESOURCES/$test/source.yml"); done
-yq ea '(. // {}) as $source ireduce ({}; . *+ $source) | (.. | select(tag == "!!seq")) |= unique' "${source_files[@]}" \
+# Without verbose, so one job checks the default build output.
+yq ea '(. // {}) as $source ireduce ({}; . *+ $source) | (.. | select(tag == "!!seq")) |= unique | del(.verbose)' "${source_files[@]}" \
   | apply_local_flags - > "$TMP_DIR/full.yml"
 
 # One-item list per step, so steps concatenate with `+`. Images with testcontainers start a container runtime.
