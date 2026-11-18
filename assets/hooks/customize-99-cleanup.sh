@@ -35,10 +35,6 @@ if [ -d "$chroot_dir$COREPACK_HOME_DIR" ]; then
   corepack cache clean
 fi
 
-find $chroot_dir/root -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
-find $chroot_dir/home -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
-find $chroot_dir/var -maxdepth 3 -type d -name ".git" ! -path "./.git" -exec rm -rf {} +
-
 rm -rf $chroot_dir/tmp/*
 
 info_to_output_file "Cleanup finished"
