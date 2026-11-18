@@ -9,7 +9,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^assets/.+\\.sh$/", "/^Dockerfile$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:ARG )?[A-Z_]+_VERSION=(?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:ARG )?[A-Z_]+_VERSION=(?<currentValue>\\S+)(?: [A-Z_]+_COMMIT=(?<currentDigest>[0-9a-f]{40}))?"
       ]
     }
   ]

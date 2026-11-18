@@ -1,8 +1,9 @@
 # The base rootfs, built at image build so `in` only has to add the dependencies.
 FROM debian:trixie-slim AS base
 
+# A tag can move; the commit can't, and apt-fast runs as root in every build.
 # renovate: datasource=github-tags depName=ilikenwf/apt-fast
-ARG APT_FAST_VERSION=v1.7.6
+ARG APT_FAST_VERSION=v1.7.6 APT_FAST_COMMIT=d341a656caa62beca2f7f3909f16a0170de3d18e
 
 COPY base/apt-fast.conf /etc/apt-fast.conf
 COPY base/apt.conf /etc/apt/apt.conf.d/90setup-runtime
@@ -13,7 +14,7 @@ RUN rm /etc/apt/apt.conf.d/docker-clean && \
     apt-get install -y --no-install-recommends ca-certificates aria2 lockfile-progs && \
     apt-mark auto aria2 lockfile-progs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-ADD --chmod=755 https://raw.githubusercontent.com/ilikenwf/apt-fast/${APT_FAST_VERSION}/apt-fast /usr/local/sbin/apt-fast
+ADD --chmod=755 https://raw.githubusercontent.com/ilikenwf/apt-fast/${APT_FAST_COMMIT}/apt-fast /usr/local/sbin/apt-fast
 
 FROM cgr.dev/chainguard/wolfi-base AS tar
 RUN --mount=type=bind,from=base,target=/base apk add --no-cache gnutar && \
