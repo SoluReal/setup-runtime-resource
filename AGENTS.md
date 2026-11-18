@@ -43,12 +43,12 @@ Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<n
 `assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
 
-`in` runs apt-fast and the `hook` in a plain `chroot` (no fakechroot: it is unmaintained; tasks have CAP_SYS_CHROOT and
-CAP_MKNOD but no user namespaces). A chroot has no /dev or /proc and can't mount them, so `in` mknods a few /dev nodes for
-the build and removes them at the end. The runtime installers run on the host against the rootfs path, overlapping the
-apt install, so they need neither. `hooks/customize-*.sh` run before apt is purged; `in` rewrites absolute symlinks at the
-end. The host needs a glibc and libstdc++/libatomic at least as new as trixie's, since runtime installers run rootfs
-binaries on it.
+`in` runs apt-fast and the `hook` in a plain `chroot` (no fakechroot: it is unmaintained). A chroot has no /dev or
+/proc, so `in` bind-mounts a few of the container's /dev nodes into it for the build and unmounts them at the end. It
+can't mknod them: workers may run privileged containers in a user namespace (rootless), where mknod of a device always
+fails. The runtime installers run on the host against the rootfs path, overlapping the apt install, so they need
+neither. `hooks/customize-*.sh` run before apt is purged; `in` rewrites absolute symlinks at the end. The host needs a
+glibc and libstdc++/libatomic at least as new as trixie's, since runtime installers run rootfs binaries on it.
 
 `hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
 `golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),

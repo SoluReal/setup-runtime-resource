@@ -15,20 +15,25 @@ function rootfs_extract_base() {
   rootfs_make_dev
 }
 
-# A chroot has no /dev and mounting is not allowed, so create the nodes scripts and the hook need.
+# A chroot has no /dev. A worker that runs privileged containers in a user namespace forbids mknod of devices,
+# so bind the container's own nodes instead.
+ROOTFS_DEVICES=(null zero random urandom tty)
+
 function rootfs_make_dev() {
   mkdir -p "$rootfs/dev"
-  rm -f "$rootfs"/dev/{null,zero,random,urandom,tty}
-  mknod -m 666 "$rootfs/dev/null" c 1 3
-  mknod -m 666 "$rootfs/dev/zero" c 1 5
-  mknod -m 666 "$rootfs/dev/random" c 1 8
-  mknod -m 666 "$rootfs/dev/urandom" c 1 9
-  mknod -m 666 "$rootfs/dev/tty" c 5 0
+  for device in "${ROOTFS_DEVICES[@]}"; do
+    rm -f "$rootfs/dev/$device"
+    touch "$rootfs/dev/$device"
+    mount --bind "/dev/$device" "$rootfs/dev/$device"
+  done
 }
 
 # Device nodes don't survive Concourse streaming the rootfs to an unprivileged task.
 function rootfs_remove_dev() {
-  rm -f "$rootfs"/dev/{null,zero,random,urandom,tty}
+  for device in "${ROOTFS_DEVICES[@]}"; do
+    umount "$rootfs/dev/$device"
+    rm -f "$rootfs/dev/$device"
+  done
 }
 
 function rootfs_configure_apt() {
