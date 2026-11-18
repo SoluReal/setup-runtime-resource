@@ -75,6 +75,9 @@ INFO_LOGGER_PID=$!
 RUNTIMES_PID=""
 trap 'kill $INFO_LOGGER_PID 2>/dev/null || true; [[ -z "$RUNTIMES_PID" ]] || kill -- -$RUNTIMES_PID 2>/dev/null || true' EXIT
 
+# apt closes every possible descriptor before running a method, which with a worker's 2^31 limit takes hours.
+[[ "$(ulimit -n)" != unlimited ]] && (( $(ulimit -n) <= 65536 )) || ulimit -Sn 65536
+
 info "Extracting the base rootfs and installing dependencies (this can take some time)..."
 rootfs_extract_base
 rootfs_configure_apt
