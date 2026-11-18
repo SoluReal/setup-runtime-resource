@@ -1,7 +1,9 @@
 # setup-runtime-resource
 
-Concourse resource (`solureal/setup-runtime-resource`) that builds a Debian trixie rootfs at pipeline time
-with `mmdebstrap` + `fakechroot`, cached by Concourse. `check` = SHA-256 of `source`; `in` builds; `out` no-op.
+Concourse resource (`solureal/setup-runtime-resource`) that builds a Debian trixie rootfs at pipeline time, cached by
+Concourse. The image (Wolfi) bakes `debian:trixie-slim` plus apt-fast as `base.tar` (see the Dockerfile); `in` extracts
+it, upgrades it and installs `dependencies` with apt-fast in a chroot, then purges apt. `check` = SHA-256 of `source`;
+`in` builds; `out` no-op.
 
 ## Tests
 
@@ -21,7 +23,7 @@ TEST="maven gradle" ./build-and-test.sh
 - Adding a test = adding its directory; nothing else. `test/pipeline.sh` (bash + mikefarah yq v4) prints a base pipeline
   (`ci/pipeline.yml`, `test/pipeline.yml`) plus a resource and `test-<name>` job per test, and `test-full`: every
   test's `test.sh` as one `in_parallel` step against one image whose source is the deep merge of all `source.yml`s
-  (lists unioned, different scalars fail naming both tests, so pin ONE version per tool across tests). Steps are
+  (lists unioned, different scalars fail naming both tests, so pin ONE version per tool across tests), minus `verbose`. Steps are
   `privileged` when their image enables testcontainers. The deploy and `build-and-test.sh` set the rendered pipeline, never the base file.
 - `ci/tasks/run-tests.sh` (the `test` job, on the resource image itself) clears each step's task cache, triggers
   each `test-<name>` job twice (`PARALLEL` jobs at once, default 4) and checks the **second** (warm) run: no
@@ -41,6 +43,13 @@ Per runtime: `assets/installers/<name>.sh` (host: `<name>_get_dependencies`, `<n
 `assets/in`), `assets/runtimes/<name>.sh` (installs inside the chroot), `assets/includes/<name>.sh`
 (sourced from `bashrc.sh` at task time; registers caches). Also document new `source` options in `README.md`.
 
+`in` runs apt-fast and the `hook` in a plain `chroot` (no fakechroot: it is unmaintained; tasks have CAP_SYS_CHROOT and
+CAP_MKNOD but no user namespaces). A chroot has no /dev or /proc and can't mount them, so `in` mknods a few /dev nodes for
+the build and removes them at the end. The runtime installers run on the host against the rootfs path, overlapping the
+apt install, so they need neither. `hooks/customize-*.sh` run before apt is purged; `in` rewrites absolute symlinks at the
+end. The host needs a glibc and libstdc++/libatomic at least as new as trixie's, since runtime installers run rootfs
+binaries on it.
+
 `hooks/customize-10-runtimes.sh` runs the runtime scripts as concurrent groups (`sdkman java`, `nvm node`, `python`,
 `golang`; add new runtimes there) and fails the build with the failing group's output. Per group (`$GROUP_NAME`),
 `info_spinner` logs one atomic `▶`/`✔` line per step to the shared `$OUTPUT_FILE` (no `\r` spinners), raw tool output goes
@@ -53,9 +62,10 @@ Caching invariants:
   If a tool can't be pointed there, it isn't cached.
 - The registry in `bashrc.sh` stays empty; each plugin registers its own keys at source time.
 - sdkman/nvm/uv/corepack versions are baked into the rootfs, not cached. Installs a task runs itself
-  (`.nvmrc`, `.sdkmanrc`) extract again every build. Only nvm's archive (`node/nvm`, via an overridden
-  `nvm_cache_dir`) and uv's interpreter archives (`uv/python`) are cached: sdkman hardcodes `$SDKMAN_DIR/tmp`
-  and always re-downloads, so java-rc keeps `DOWNLOADS_ON_WARM_RUN`.
+  (`.nvmrc`, `.sdkmanrc`) extract again every build. Only their archives are cached: nvm's (`node/nvm`, via an
+  overridden `nvm_cache_dir`), uv's interpreters (`uv/python`) and sdkman's (`sdkman/archives`). sdkman has no setting
+  for it, so `includes/sdkman.sh` wraps `__sdkman_download` and links the cached zip into `$SDKMAN_DIR/tmp`, the one
+  path its install unzips from: the only symlink in the cache layer.
 - `create_m2_dir` writes settings.xml to both `~/.m2` and `$MAVEN_USER_HOME`; keep both.
 - pnpm's store var is `npm_config_store_dir` (`PNPM_STORE_PATH` does nothing).
 - The `hook` runs before `bashrc.sh` is appended to `.bashrc`, so no plugin (or cache) is active in it.
