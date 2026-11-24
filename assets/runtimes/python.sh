@@ -6,7 +6,7 @@ chroot_dir="$1"
 source "$ROOT_DIR/common.sh"
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-UV_VERSION=0.13.9
+UV_VERSION=0.13.10
 
 if runtime_is_requested_in_source python; then
   uv_dir="$chroot_dir$UV_RUNTIME_DIR"
